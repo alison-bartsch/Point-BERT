@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import os
 import json
+from tqdm import tqdm
 from tools import builder
 from utils import misc, dist_utils
 import time
@@ -112,7 +113,7 @@ def run_net(args, config, train_writer=None, val_writer=None):
 
         base_model.train()  # set model to training mode
         n_batches = len(train_dataloader)
-        for idx, (taxonomy_ids, model_ids, data) in enumerate(train_dataloader):
+        for idx, (taxonomy_ids, model_ids, data) in tqdm(enumerate(train_dataloader)):
             num_iter += 1
             n_itr = epoch * n_batches + idx
             
