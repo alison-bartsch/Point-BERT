@@ -38,6 +38,9 @@ def main():
             val_writer = None
     # config
     config = get_config(args, logger = logger)
+
+    print("\n\nConfigs: ", config)
+
     # batch size
     if args.distributed:
         assert config.total_bs % world_size == 0

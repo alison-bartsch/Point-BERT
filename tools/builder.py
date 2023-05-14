@@ -13,6 +13,7 @@ from timm.scheduler import CosineLRScheduler
 
 def dataset_builder(args, config):
     dataset = build_dataset_from_cfg(config._base_, config.others)
+
     shuffle = config.others.subset == 'train'
     if args.distributed:
         sampler = torch.utils.data.distributed.DistributedSampler(dataset, shuffle = shuffle)

@@ -128,6 +128,7 @@ class Registry:
             class: The corresponding class.
         """
         scope, real_key = self.split_scope_key(key)
+
         if scope is None or scope == self._scope:
             # get from self
             if real_key in self._module_dict:
@@ -174,6 +175,7 @@ class Registry:
             module_name = module_class.__name__
         if isinstance(module_name, str):
             module_name = [module_name]
+        
         for name in module_name:
             if not force and name in self._module_dict:
                 raise KeyError(f'{name} is already registered '
@@ -251,6 +253,8 @@ def build_from_cfg(cfg, registry, default_args=None):
     Returns:
         object: The constructed object.
     """
+    print("\n\n config: ", cfg)
+    
     if not isinstance(cfg, dict):
         raise TypeError(f'cfg must be a dict, but got {type(cfg)}')
     if 'NAME' not in cfg:
