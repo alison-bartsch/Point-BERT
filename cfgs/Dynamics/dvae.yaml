@@ -1,0 +1,7 @@
+config : {'NAME': 'DiscreteVAE', 
+          'group_size': 32, 
+          'num_group': 64, 
+          'encoder_dims': 256, 
+          'num_tokens': 8192, 
+          'tokens_dims': 256, 
+          'decoder_dims': 256}

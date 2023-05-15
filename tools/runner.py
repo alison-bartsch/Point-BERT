@@ -342,11 +342,17 @@ def test(base_model, test_dataloader, args, config, logger = None):
     with torch.no_grad():
         for idx, (taxonomy_ids, model_ids, data) in enumerate(test_dataloader):
             # import pdb; pdb.set_trace()
-            if  taxonomy_ids[0] not in useful_cate:
-                continue
-    
+
             dataset_name = config.dataset.test._base_.NAME
-            if dataset_name == 'ShapeNet':
+
+            if dataset_name == 'ClayDemos':
+                if taxonomy_ids[0] % 60 !=0:
+                    continue
+            else:
+                if taxonomy_ids[0] not in useful_cate:
+                    continue
+
+            if dataset_name == 'ShapeNet' or dataset_name == 'ClayDemos':
                 points = data.cuda()
             else:
                 raise NotImplementedError(f'Train phase do not support {dataset_name}')
@@ -361,15 +367,19 @@ def test(base_model, test_dataloader, args, config, logger = None):
             if not os.path.exists(data_path):
                 os.makedirs(data_path)
 
+            gt = points.squeeze().detach().cpu().numpy()
             points = points.squeeze().detach().cpu().numpy()
             np.savetxt(os.path.join(data_path,'gt.txt'), points, delimiter=';')
             points = misc.get_ptcloud_img(points)
             final_image.append(points)
 
+            recon = dense_points.squeeze().detach().cpu().numpy()
             dense_points = dense_points.squeeze().detach().cpu().numpy()
             np.savetxt(os.path.join(data_path,'dense_points.txt'), dense_points, delimiter=';')
             dense_points = misc.get_ptcloud_img(dense_points)
             final_image.append(dense_points)
+
+            misc.plot_pointclouds(gt, recon)
 
             img = np.concatenate(final_image, axis=1)
             img_path = os.path.join(data_path, f'plot.jpg')

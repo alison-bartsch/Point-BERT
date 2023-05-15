@@ -13,7 +13,7 @@ class ClayDemos(data.Dataset):
         self.pc_path = config.PC_PATH
         self.subset = config.subset
         self.npoints = config.N_POINTS
-        
+
         # self.data_list_file = os.path.join(self.data_root, f'{self.subset}.txt')
         # test_data_list_file = os.path.join(self.data_root, 'test.txt')
         
@@ -67,7 +67,6 @@ class ClayDemos(data.Dataset):
         data = self.pc_norm(data)
         data = torch.from_numpy(data).float()
         # return sample['taxonomy_id'], sample['model_id'], data
-        print("idx:", idx)
         return idx, idx, data
 
     def __len__(self):

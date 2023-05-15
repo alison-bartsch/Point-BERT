@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import random
 import torch
+import open3d as o3d
 import torch.nn as nn
 import torch.nn.functional as F
 import os
@@ -182,6 +183,23 @@ def seprate_point_cloud(xyz, num_points, crop, fixed_points = None, padding_zero
     crop_data = torch.cat(CROP,dim=0)# B M 3
 
     return input_data.contiguous(), crop_data.contiguous()
+
+def plot_pointclouds(gt, recon):
+    print("\nGt Shap:", gt.shape)
+    print("Recon shape: ", recon.shape)
+
+    # create gt point cloud
+    og_pcl = o3d.geometry.PointCloud()
+    og_pcl.points = o3d.utility.Vector3dVector(gt)
+    og_colors = np.tile(np.array([0, 0, 1]), (len(gt),1))
+    og_pcl.colors = o3d.utility.Vector3dVector(og_colors)
+
+    # visualize reconstructed cloud
+    pcl = o3d.geometry.PointCloud()
+    pcl.points = o3d.utility.Vector3dVector(recon)
+    pcl_colors = np.tile(np.array([1, 0, 0]), (len(recon),1))
+    pcl.colors = o3d.utility.Vector3dVector(pcl_colors)
+    o3d.visualization.draw_geometries([pcl, og_pcl])
 
 def get_ptcloud_img(ptcloud):
     fig = plt.figure(figsize=(8, 8))

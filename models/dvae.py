@@ -273,6 +273,7 @@ class Decoder(nn.Module):
 class DiscreteVAE(nn.Module):
     def __init__(self, config, **kwargs):
         super().__init__()
+        print("\n\n Config: ", config)
         self.group_size = config.group_size
         self.num_group = config.num_group
         self.encoder_dims = config.encoder_dims
@@ -338,6 +339,25 @@ class DiscreteVAE(nn.Module):
         feature = self.dgcnn_2(sampled, center)
         coarse, fine = self.decoder(feature)
 
+        with torch.no_grad():
+            whole_fine = (fine + center.unsqueeze(2)).reshape(inp.size(0), -1, 3)
+            whole_coarse = (coarse + center.unsqueeze(2)).reshape(inp.size(0), -1, 3)
+
+        assert fine.size(2) == self.group_size
+        ret = (whole_coarse, whole_fine, coarse, fine, neighborhood, logits)
+        return ret
+    
+    def encode(self, inp, temperature = 1., hard = False, **kwargs):
+        neighborhood, center = self.group_divider(inp)
+        logits = self.encoder(neighborhood)   #  B G C
+        logits = self.dgcnn_1(logits, center) #  B G N
+        soft_one_hot = F.gumbel_softmax(logits, tau = temperature, dim = 2, hard = hard) # B G N
+        sampled = torch.einsum('b g n, n c -> b g c', soft_one_hot, self.codebook) # B G C
+        feature = self.dgcnn_2(sampled, center)
+        return feature, neighborhood, center, logits
+
+    def decode(self, feature, neighborhood, center, logits, inp):
+        coarse, fine = self.decoder(feature)
 
         with torch.no_grad():
             whole_fine = (fine + center.unsqueeze(2)).reshape(inp.size(0), -1, 3)
