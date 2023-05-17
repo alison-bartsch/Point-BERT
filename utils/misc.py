@@ -185,8 +185,8 @@ def seprate_point_cloud(xyz, num_points, crop, fixed_points = None, padding_zero
     return input_data.contiguous(), crop_data.contiguous()
 
 def plot_pointclouds(gt, recon):
-    print("\nGt Shap:", gt.shape)
-    print("Recon shape: ", recon.shape)
+    # print("\nGt Shape:", gt.shape)
+    # print("Recon shape: ", recon.shape)
 
     # create gt point cloud
     og_pcl = o3d.geometry.PointCloud()

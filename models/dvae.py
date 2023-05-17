@@ -176,6 +176,26 @@ class Group(nn.Module):
         # normalize
         neighborhood = neighborhood - center.unsqueeze(2)
         return neighborhood, center
+    
+    def get_neighborhood(self, xyz, center):
+        """
+        Given the centers, return the neighborhood
+        """
+        batch_size, num_points, _ = xyz.shape
+        # knn to get the neighborhood
+        # _, idx = self.knn(xyz, center) # B G M
+        idx = knn_point(self.group_size, xyz, center) # B G M
+        assert idx.size(1) == self.num_group
+        assert idx.size(2) == self.group_size
+        idx_base = torch.arange(0, batch_size, device=xyz.device).view(-1, 1, 1) * num_points
+        idx = idx + idx_base
+        idx = idx.view(-1)
+        neighborhood = xyz.view(batch_size * num_points, -1)[idx, :]
+        neighborhood = neighborhood.view(batch_size, self.num_group, self.group_size, 3).contiguous()
+        # normalize
+        neighborhood = neighborhood - center.unsqueeze(2)
+        return neighborhood, center
+
 
 class Encoder(nn.Module):
     def __init__(self, encoder_channel):
@@ -273,16 +293,14 @@ class Decoder(nn.Module):
 class DiscreteVAE(nn.Module):
     def __init__(self, config, **kwargs):
         super().__init__()
-        print("\n\n Config: ", config)
-        self.group_size = config.group_size
-        self.num_group = config.num_group
-        self.encoder_dims = config.encoder_dims
-        self.tokens_dims = config.tokens_dims
+        self.group_size = config.group_size #32
+        self.num_group = config.num_group #64
+        self.encoder_dims = config.encoder_dims # 256
+        self.tokens_dims = config.tokens_dims #256
 
-        self.decoder_dims = config.decoder_dims
-        self.num_tokens = config.num_tokens
-
-        
+        self.decoder_dims = config.decoder_dims #256
+        self.num_tokens = config.num_tokens #8192
+  
         self.group_divider = Group(num_group = self.num_group, group_size = self.group_size)
         self.encoder = Encoder(encoder_channel = self.encoder_dims)
         self.dgcnn_1 = DGCNN(encoder_channel = self.encoder_dims, output_channel = self.num_tokens)
@@ -347,16 +365,67 @@ class DiscreteVAE(nn.Module):
         ret = (whole_coarse, whole_fine, coarse, fine, neighborhood, logits)
         return ret
     
-    def encode(self, inp, temperature = 1., hard = False, **kwargs):
+    # def encode(self, inp, temperature = 1., hard = False, **kwargs):
+    #     neighborhood, center = self.group_divider(inp)
+    #     logits = self.encoder(neighborhood)   #  B G C
+    #     logits = self.dgcnn_1(logits, center) #  B G N
+    #     # print("\nlogits shape: ", logits.size())
+    #     # print("logits: ", logits)
+    #     soft_one_hot = F.gumbel_softmax(logits, tau = temperature, dim = 2, hard = hard) # B G N
+    #     # print("\nSoft One Hot: ", soft_one_hot.size())
+    #     sampled = torch.einsum('b g n, n c -> b g c', soft_one_hot, self.codebook) # B G C
+    #     # print("\nSampled: ", sampled.size())
+    #     feature = self.dgcnn_2(sampled, center)
+    #     # print("\nfeature: ", feature.size())
+    #     return feature, neighborhood, center, logits
+
+    # def decode(self, feature, neighborhood, center, logits, inp):
+    #     coarse, fine = self.decoder(feature)
+
+    #     with torch.no_grad():
+    #         whole_fine = (fine + center.unsqueeze(2)).reshape(inp.size(0), -1, 3)
+    #         whole_coarse = (coarse + center.unsqueeze(2)).reshape(inp.size(0), -1, 3)
+
+    #     assert fine.size(2) == self.group_size
+    #     ret = (whole_coarse, whole_fine, coarse, fine, neighborhood, logits)
+    #     return ret
+
+    def encode(self, inp, temperature = 1., hard = True, **kwargs):
         neighborhood, center = self.group_divider(inp)
         logits = self.encoder(neighborhood)   #  B G C
         logits = self.dgcnn_1(logits, center) #  B G N
+        # print("\nLogits shape: ", logits.size()) # 32, 64, 8192
         soft_one_hot = F.gumbel_softmax(logits, tau = temperature, dim = 2, hard = hard) # B G N
         sampled = torch.einsum('b g n, n c -> b g c', soft_one_hot, self.codebook) # B G C
-        feature = self.dgcnn_2(sampled, center)
-        return feature, neighborhood, center, logits
+        # print("\nNeighborhood shape: ", neighborhood.size()) # 32, 64, 32, 3
+        # print("\nCenter Shape: ", center.size()) # 32, 64, 3
+        # print("Codebook Shape: ", self.codebook.size()) # 8192, 256
+        # print("Sampled size: ", sampled.size()) # 32, 64, 256 
+        return sampled, neighborhood, center, logits
+    
+    def next_state_encode(self, inp, center, neighborhood, recompute_neighborhood=True, temperature = 1., hard = True):
+        if recompute_neighborhood:
+            neighborhood, center = self.group_divider.get_neighborhood(inp, center)
+        logits = self.encoder(neighborhood)   #  B G C
+        logits = self.dgcnn_1(logits, center) #  B G N
+        # print("\nLogits shape: ", logits.size()) # 32, 64, 8192
+        soft_one_hot = F.gumbel_softmax(logits, tau = temperature, dim = 2, hard = hard) # B G N
+        sampled = torch.einsum('b g n, n c -> b g c', soft_one_hot, self.codebook) # B G C
+        return sampled, neighborhood, center, logits
+    
+    def encode_logits(self, inp, temperature = 1., hard = True):
+        neighborhood, center = self.group_divider(inp)
+        logits = self.encoder(neighborhood)   #  B G C
+        logits = self.dgcnn_1(logits, center) #  B G N
+        return logits, neighborhood, center
+    
+    def latent_logits_sample(self, logits, temperature = 1., hard = True):
+        soft_one_hot = F.gumbel_softmax(logits, tau = temperature, dim = 2, hard = hard) # B G N
+        sampled = torch.einsum('b g n, n c -> b g c', soft_one_hot, self.codebook) # B G C
+        return sampled
 
-    def decode(self, feature, neighborhood, center, logits, inp):
+    def decode(self, sampled, neighborhood, center, logits, inp):
+        feature = self.dgcnn_2(sampled, center)
         coarse, fine = self.decoder(feature)
 
         with torch.no_grad():
@@ -366,4 +435,13 @@ class DiscreteVAE(nn.Module):
         assert fine.size(2) == self.group_size
         ret = (whole_coarse, whole_fine, coarse, fine, neighborhood, logits)
         return ret
+
+    def codebook_onehot(self, word):
+        word_reshaped = word.view(1,-1,word.size()[-1])
+        matches = torch.eq(self.codebook.unsqueeze(1), word_reshaped)
+        bool_matrix = matches.any(dim=-1)
+        one_hot = bool_matrix.long()
+        one_hot = torch.t(one_hot).to(torch.float32)
+        # NOTE: sometimes there are multiple matches in codebook for the word, meaning not a perfect one-hot encoding
+        return one_hot
 
