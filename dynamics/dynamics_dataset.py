@@ -95,10 +95,10 @@ class DemoWordDataset(data.Dataset):
         return pc
     
     def __len__(self):
-        return len(self.actions) * self.encoding_size
+        return len(self.actions) # * self.encoding_size
     
     def __getitem__(self, index):
-        a_idx = int(index / self.encoding_size)
+        a_idx = index # int(index / self.encoding_size)
         word_idx = (index % self.encoding_size) - 1
 
         action = self.actions[a_idx]

@@ -45,27 +45,30 @@ def train_word_dynamics(dvae, dynamics_network, optimizer, train_loader, epoch, 
     dynamics_network.train()
 
     stats = utils.Stats()
-    pbar = tqdm(total=len(train_loader.dataset))
+    pbar = tqdm(total=len(train_loader.dataset)*64)
     parameters = list(dynamics_network.parameters())
-    # for vocab, group_center, actions, target in train_loader:
-    #     vocab = vocab.cuda()
-    #     group_center = group_center.cuda()
-    #     actions = actions.cuda()
-    #     target = target.cuda()
 
     for states, next_states, actions, word_idx in train_loader:
         states = states.cuda()
         next_states = states.cuda()
         actions = actions.cuda()
 
-        z_states, _, centers, _ = dvae.encode(states) 
-        gt_z_next_states, _, _, _ = dvae.encode(next_states)
+        z_states, neighborhood, centers, _ = dvae.encode(states) 
+        # gt_z_next_states, _, _, _ = dvae.encode(next_states)
+        gt_z_next_states, _, _, _ = dvae.next_state_encode(next_states, centers, neighborhood)
 
-        batch_idxs = torch.linspace(0,states.size()[0]-1, steps=states.size()[0], dtype=int)
-        ns_word = gt_z_next_states[batch_idxs,word_idx,:] # NOTE: convert target to one-hot by looking up in codebook
-        target = dvae.codebook_onehot(ns_word).cuda()
-        group_center = centers[batch_idxs,word_idx,:]
-        vocab = z_states[batch_idxs,word_idx,:] # 32, 256
+        if states.size()[0] > 1:
+            batch_idxs = torch.linspace(0,states.size()[0]-1, steps=states.size()[0], dtype=int)
+            ns_word = gt_z_next_states[batch_idxs,word_idx,:] # NOTE: convert target to one-hot by looking up in codebook
+            target = dvae.codebook_onehot(ns_word).cuda()
+            group_center = centers[batch_idxs,word_idx,:]
+            vocab = z_states[batch_idxs,word_idx,:] # 32, 256
+        else: # NOTE: SO MUCH FASTER!
+            ns_word = gt_z_next_states.squeeze()
+            target = dvae.codebook_onehot(ns_word).cuda()
+            group_center = centers.squeeze()
+            vocab = z_states.squeeze()
+            actions = torch.tile(actions, (vocab.size()[0], 1))
 
         ns_logits = dynamics_network(vocab, group_center, actions) #.to(device)
         loss_func = nn.CrossEntropyLoss()
@@ -95,21 +98,29 @@ def test_word_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, de
             next_states = states.cuda()
             actions = actions.cuda()
 
-            z_states, _, centers, _ = dvae.encode(states) 
-            gt_z_next_states, _, _, _ = dvae.encode(next_states)
+            z_states, neighborhood, centers, _ = dvae.encode(states) 
+            # gt_z_next_states, _, _, _ = dvae.encode(next_states)
+            gt_z_next_states, _, _, _ = dvae.next_state_encode(next_states, centers, neighborhood)
 
-            batch_idxs = torch.linspace(0,states.size()[0]-1, steps=states.size()[0], dtype=int)
-            ns_word = gt_z_next_states[batch_idxs,word_idx,:] # NOTE: convert target to one-hot by looking up in codebook
-            target = dvae.codebook_onehot(ns_word).cuda()
-            group_center = centers[batch_idxs,word_idx,:]
-            vocab = z_states[batch_idxs,word_idx,:] # 32, 256
+            if states.size()[0] > 1:
+                batch_idxs = torch.linspace(0,states.size()[0]-1, steps=states.size()[0], dtype=int)
+                ns_word = gt_z_next_states[batch_idxs,word_idx,:] # NOTE: convert target to one-hot by looking up in codebook
+                target = dvae.codebook_onehot(ns_word).cuda()
+                group_center = centers[batch_idxs,word_idx,:]
+                vocab = z_states[batch_idxs,word_idx,:] # 32, 256
+            else:
+                ns_word = gt_z_next_states.squeeze()
+                target = dvae.codebook_onehot(ns_word).cuda()
+                group_center = centers.squeeze()
+                vocab = z_states.squeeze()
+                actions = torch.tile(actions, (vocab.size()[0], 1))
 
             ns_logits = dynamics_network(vocab, group_center, actions) #.to(device)
             loss_func = nn.CrossEntropyLoss()
             loss = loss_func(ns_logits, target)
 
             test_loss += loss * vocab.shape[0]
-    test_loss /= len(test_loader.dataset)
+    test_loss /= (len(test_loader.dataset)*64)
     print(f'Epoch {epoch}, Test Loss: {test_loss:.4f}')
     return test_loss.item()
 
@@ -312,7 +323,7 @@ if __name__ == '__main__':
     parser.add_argument('--weight_decay', type=float, default=0, help='default 0')
     parser.add_argument('--epochs', type=int, default=750, help='default: 100')
     parser.add_argument('--log_interval', type=int, default=1, help='default: 1')
-    parser.add_argument('--batch_size', type=int, default=64, help='default 32')
+    parser.add_argument('--batch_size', type=int, default=1, help='default 32')
 
     # Action and Cloud Parameters
     parser.add_argument('--a_dim', type=int, default=5, help='dimension of the action')
