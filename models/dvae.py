@@ -332,6 +332,10 @@ class DiscreteVAE(nn.Module):
         loss_recon = loss_coarse_block + loss_fine_block
 
         return loss_recon
+    
+    def recon_center_loss(self, ctr, gt):
+        bs, g, _ = ctr.shape
+        
 
     def get_loss(self, ret, gt):
 

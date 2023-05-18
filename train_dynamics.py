@@ -16,6 +16,7 @@ import torch.utils.data as data
 # from pytorch3d.loss import chamfer_distance # TODO: perhaps use this repository's version of CD????
 from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import MultiStepLR
+from pytorch3d.loss import chamfer_distance
 
 # import utils as utils # TODO: add in utils file in dynamics folder and change input
 # import emd.emd_module as emd
@@ -145,8 +146,9 @@ def train_center_dynamics(dvae, dynamics_network, optimizer, train_loader, epoch
         # z_pred_next_states = dynamics_network(z_states, actions).to(device)
 
         ns_center_pred = dynamics_network(center_state, actions).to(device)
-        loss_func = nn.MSELoss()
-        loss = loss_func(center_next_states, ns_center_pred)
+        # loss_func = nn.MSELoss()
+        # loss = loss_func(center_next_states, ns_center_pred)
+        loss = chamfer_distance(center_next_states, ns_center_pred)[0]
 
         optimizer.zero_grad()
         loss.backward()
@@ -179,8 +181,9 @@ def test_center_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, 
         ns_center_pred = dynamics_network(center_state, actions).to(device)
 
         # try mse loss
-        loss_func = nn.MSELoss()
-        loss = loss_func(center_next_states, ns_center_pred)
+        # loss_func = nn.MSELoss()
+        # loss = loss_func(center_next_states, ns_center_pred)
+        loss = chamfer_distance(center_next_states, ns_center_pred)[0]
 
         # could do chamfer distance
 
