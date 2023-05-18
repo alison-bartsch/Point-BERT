@@ -1,6 +1,33 @@
 import torch
 import torch.nn as nn
 
+class CenterDynamics(nn.Module):
+    def __init__(self, input_dim, output_dim):
+        super().__init__()
+        self.input_dim = input_dim # 64 centroids x 3 (x,y,z)
+        self.output_dim = output_dim
+        self.hidden_size = 512
+
+        self.model = nn.Sequential(
+            nn.Linear(self.input_dim, self.hidden_size),
+            nn.ReLU(),
+            nn.Dropout(0.25),
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
+            nn.Dropout(0.25),
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
+            nn.Dropout(0.25),
+            nn.Linear(self.hidden_size, self.output_dim)
+        )
+    
+    def forward(self, center, action):
+        center = torch.reshape(center, (center.size()[0], self.output_dim)) # reshape to (batch_size, self.dim)
+        x = torch.cat((center, action), dim=-1)
+        x = self.model(x)
+        x = torch.reshape(x, (x.size()[0], 64, 3))
+        return x
+
 class NeighborhoodDynamics(nn.Module):
     def __init__(self, input_dim, output_dim):
         super().__init__()

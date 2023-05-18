@@ -390,6 +390,10 @@ class DiscreteVAE(nn.Module):
     #     ret = (whole_coarse, whole_fine, coarse, fine, neighborhood, logits)
     #     return ret
 
+    def get_center(self, inp):
+        neighborhood, center = self.group_divider(inp)
+        return neighborhood, center
+
     def encode(self, inp, temperature = 1., hard = True, **kwargs):
         neighborhood, center = self.group_divider(inp)
         logits = self.encoder(neighborhood)   #  B G C
@@ -405,7 +409,8 @@ class DiscreteVAE(nn.Module):
     
     def next_state_encode(self, inp, center, neighborhood, recompute_neighborhood=True, temperature = 1., hard = True):
         if recompute_neighborhood:
-            neighborhood, center = self.group_divider.get_neighborhood(inp, center)
+            input = inp.clone().to(torch.float32)
+            neighborhood, center = self.group_divider.get_neighborhood(input, center)
         logits = self.encoder(neighborhood)   #  B G C
         logits = self.dgcnn_1(logits, center) #  B G N
         # print("\nLogits shape: ", logits.size()) # 32, 64, 8192
@@ -444,4 +449,7 @@ class DiscreteVAE(nn.Module):
         one_hot = torch.t(one_hot).to(torch.float32)
         # NOTE: sometimes there are multiple matches in codebook for the word, meaning not a perfect one-hot encoding
         return one_hot
+    
+    def get_word(self, idx):
+        return self.codebook[idx,:]
 

@@ -1,0 +1,1 @@
+{"lr": 0.0001, "weight_decay": 0, "epochs": 500, "log_interval": 1, "batch_size": 1, "a_dim": 5, "enc_dim": 16, "loss_type": "mse", "n_pts": 2048, "pcl_type": "shell_scaled", "word_dynamics": true, "seed": 0, "name": "exp8_twonetworks_ce", "script": "train_dynamics"}

@@ -40,6 +40,7 @@ def get_dataloaders(pcl_type, word_dynamics, dvae=None):
     test_loader = data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, pin_memory=True)
     return train_loader, test_loader
 
+
 def train_word_dynamics(dvae, dynamics_network, optimizer, train_loader, epoch, device, loss_type):
     dvae.eval()
     dynamics_network.train()
@@ -121,6 +122,68 @@ def test_word_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, de
 
             test_loss += loss * vocab.shape[0]
     test_loss /= (len(test_loader.dataset)*64)
+    print(f'Epoch {epoch}, Test Loss: {test_loss:.4f}')
+    return test_loss.item()
+
+def train_center_dynamics(dvae, dynamics_network, optimizer, train_loader, epoch, device, loss_type):
+    dvae.eval()
+    dynamics_network.train()
+
+    stats = utils.Stats()
+    pbar = tqdm(total=len(train_loader.dataset))
+    parameters = list(dynamics_network.parameters())
+    for states, next_states, actions in train_loader:
+
+        states = states.cuda()
+        next_states = states.cuda()
+        actions = actions.cuda()
+
+        _, _, center_state, _ = dvae.encode(states) #.to(device)
+        _, _, center_next_states, _ = dvae.encode(next_states)
+        # z_pred_next_states = dynamics_network(z_states, actions).to(device)
+
+        ns_center_pred = dynamics_network(center_state, actions).to(device)
+        loss_func = nn.MSELoss()
+        loss = loss_func(center_next_states, ns_center_pred)
+
+        optimizer.zero_grad()
+        loss.backward()
+        nn.utils.clip_grad_norm_(parameters, 20)
+        optimizer.step()
+
+        stats.add('train_loss', loss.item())
+        avg_loss = np.mean(stats['train_loss'][-50:])
+
+        pbar.set_description(f'Epoch {epoch}, Train Loss {avg_loss:.4f}')
+        pbar.update(states.shape[0])
+    pbar.close()
+    return stats
+
+def test_center_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, device, loss_type):
+    dvae.eval()
+    dynamics_network.eval()
+
+    test_loss = 0
+    for states, next_states, actions in test_loader:
+
+        states = states.cuda()
+        next_states = states.cuda()
+        actions = actions.cuda()
+
+        _, _, center_state, _ = dvae.encode(states) #.to(device)
+        _, _, center_next_states, _ = dvae.encode(next_states)
+        # z_pred_next_states = dynamics_network(z_states, actions).to(device)
+
+        ns_center_pred = dynamics_network(center_state, actions).to(device)
+
+        # try mse loss
+        loss_func = nn.MSELoss()
+        loss = loss_func(center_next_states, ns_center_pred)
+
+        # could do chamfer distance
+
+        test_loss += loss * states.shape[0]
+    test_loss /= len(test_loader.dataset)
     print(f'Epoch {epoch}, Test Loss: {test_loss:.4f}')
     return test_loss.item()
 
@@ -251,6 +314,10 @@ def main():
         input_dim = 256 + args.a_dim + 3 
         output_dim = 8192
         dynamics_network = dynamics.NeighborhoodDynamics(input_dim, output_dim).to(device)
+    elif args.center_dynamics:
+        dim = 64*3
+        input_dim = dim + args.a_dim
+        dynamics_network = dynamics.CenterDynamics(input_dim, dim).to(device)
     else:
         z_dim = 64*256 # 8192 # 256
         input_dim = args.enc_dim*256
@@ -285,6 +352,9 @@ def main():
         if args.word_dynamics:
             stats = train_word_dynamics(dvae, dynamics_network, optimizer, train_loader, epoch, device, args.loss_type)
             test_loss = test_word_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, device, args.loss_type)
+        elif args.center_dynamics:
+            stats = train_center_dynamics(dvae, dynamics_network, optimizer, train_loader, epoch, device, args.loss_type)
+            test_loss = test_center_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, device, args.loss_type)
         else:
             stats = train_dynamics(dvae, dynamics_network, optimizer, train_loader, epoch, device, args.loss_type)
             test_loss = test_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, device, args.loss_type)
@@ -319,11 +389,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # Learning Parameters
-    parser.add_argument('--lr', type=float, default=1e-5, help='base learning rate for batch size 128 (default: 1e-3)')
+    parser.add_argument('--lr', type=float, default=1e-3, help='base learning rate for batch size 128 (default: 1e-3)')
     parser.add_argument('--weight_decay', type=float, default=0, help='default 0')
-    parser.add_argument('--epochs', type=int, default=750, help='default: 100')
+    parser.add_argument('--epochs', type=int, default=500, help='default: 100')
     parser.add_argument('--log_interval', type=int, default=1, help='default: 1')
-    parser.add_argument('--batch_size', type=int, default=1, help='default 32')
+    parser.add_argument('--batch_size', type=int, default=32, help='default 32')
 
     # Action and Cloud Parameters
     parser.add_argument('--a_dim', type=int, default=5, help='dimension of the action')
@@ -331,11 +401,12 @@ if __name__ == '__main__':
     parser.add_argument('--loss_type', type=str, default='mse', help='[cos, mse, cd, both]')
     parser.add_argument('--n_pts', type=int, default=2048, help='number of points in point cloud') 
     parser.add_argument('--pcl_type', type=str, default='shell_scaled', help='options: dense_centered, dense_scaled, shell_centered, shell_scaled')
-    parser.add_argument('--word_dynamics', type=bool, default=True, help='dynamics model at word-level or global')                                                                                
-    
+    parser.add_argument('--word_dynamics', type=bool, default=False, help='dynamics model at word-level or global')                                                                                
+    parser.add_argument('--center_dynamics',type=bool, default=True, help='dynamics model for the centroids' )
+
     # Other
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--name', type=str, default='exp7_twonetworks_ce', help='folder name results are stored into')
+    parser.add_argument('--name', type=str, default='exp10_centroid', help='folder name results are stored into')
     args = parser.parse_args()
 
     main()
