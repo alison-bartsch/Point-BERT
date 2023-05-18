@@ -70,7 +70,7 @@ Visualize center cluster dynamics model
 path = '/home/alison/Clay_Data/Fully_Processed/All_Shapes'
 dvae_path = 'experiments/dvae/ShapeNet55_models/test_dvae/ckpt-best.pth'
 word_dynamics_path = 'dvae_dynamics_experiments/exp8_twonetworks_ce'
-center_dynamics_path = 'dvae_dynamics_experiments/exp10_centroid`'
+center_dynamics_path = 'dvae_dynamics_experiments/exp10_centroid'
 
 # load the dvae model
 config = cfg_from_yaml_file('cfgs/Dynamics/dvae.yaml')
@@ -91,7 +91,7 @@ word_dynamics = word_checkpoint['dynamics_network'].to(device)
 dataset = DemoWordDataset(path, 'shell_scaled', dvae)
 
 # do we also predict the new vocab?
-predict_words = False
+predict_words = True
 
 # test_samples = [0, 6, 100, 3000, 5067, 2048, 2678, 3333, 6983, 222, 468, 172]
 

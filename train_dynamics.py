@@ -15,6 +15,7 @@ import torch.nn.functional as F
 import torch.utils.data as data
 # from pytorch3d.loss import chamfer_distance # TODO: perhaps use this repository's version of CD????
 from torch.utils.tensorboard import SummaryWriter
+from torch.optim.lr_scheduler import MultiStepLR
 
 # import utils as utils # TODO: add in utils file in dynamics folder and change input
 # import emd.emd_module as emd
@@ -41,7 +42,7 @@ def get_dataloaders(pcl_type, word_dynamics, dvae=None):
     return train_loader, test_loader
 
 
-def train_word_dynamics(dvae, dynamics_network, optimizer, train_loader, epoch, device, loss_type):
+def train_word_dynamics(dvae, dynamics_network, optimizer, scheduler, train_loader, epoch, device, loss_type):
     dvae.eval()
     dynamics_network.train()
 
@@ -86,6 +87,7 @@ def train_word_dynamics(dvae, dynamics_network, optimizer, train_loader, epoch, 
         pbar.set_description(f'Epoch {epoch}, Train Loss {avg_loss:.4f}')
         pbar.update(vocab.shape[0])
     pbar.close()
+    scheduler.step()
     return stats
 
 def test_word_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, device, loss_type):
@@ -317,17 +319,17 @@ def main():
     elif args.center_dynamics:
         dim = 64*3
         input_dim = dim + args.a_dim
-        dynamics_network = dynamics.CenterDynamics(input_dim, dim).to(device)
+        # dynamics_network = dynamics.CenterDynamics(input_dim, dim).to(device)
+        dynamics_network = dynamics.PointNetDynamics(dim).to(device)
     else:
         z_dim = 64*256 # 8192 # 256
         input_dim = args.enc_dim*256
         dynamics_network = dynamics.LatentVAEDynamicsNet(input_dim, z_dim, args.a_dim).to(device)
     parameters = list(dynamics_network.parameters())
     optimizer = optim.Adam(parameters, lr=args.lr, weight_decay=args.weight_decay)
-    # scheduler = MultiStepLR(optimizer,
-    #                 milestones=[25, 50, 100, 150, 200, 300],
-    #                 # milestones=[75, 150, 200, 300],
-    #                 gamma=0.25)
+    scheduler = MultiStepLR(optimizer,
+                    milestones=[25, 50, 100, 150, 200, 300],
+                    gamma=0.25)
 
     # load_name = join('out', args.load_path)
     # checkpoint = torch.load(join(load_name, 'checkpoint'))
@@ -406,7 +408,7 @@ if __name__ == '__main__':
 
     # Other
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--name', type=str, default='exp10_centroid', help='folder name results are stored into')
+    parser.add_argument('--name', type=str, default='exp12_center_pointnet', help='folder name results are stored into')
     args = parser.parse_args()
 
     main()
