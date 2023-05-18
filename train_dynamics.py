@@ -128,7 +128,7 @@ def test_word_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, de
     print(f'Epoch {epoch}, Test Loss: {test_loss:.4f}')
     return test_loss.item()
 
-def train_center_dynamics(dvae, dynamics_network, optimizer, train_loader, epoch, device, loss_type):
+def train_center_dynamics(dvae, dynamics_network, optimizer, scheduler, train_loader, epoch, device, loss_type):
     dvae.eval()
     dynamics_network.train()
 
@@ -161,6 +161,7 @@ def train_center_dynamics(dvae, dynamics_network, optimizer, train_loader, epoch
         pbar.set_description(f'Epoch {epoch}, Train Loss {avg_loss:.4f}')
         pbar.update(states.shape[0])
     pbar.close()
+    scheduler.step()
     return stats
 
 def test_center_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, device, loss_type):
@@ -184,8 +185,6 @@ def test_center_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, 
         # loss_func = nn.MSELoss()
         # loss = loss_func(center_next_states, ns_center_pred)
         loss = chamfer_distance(center_next_states, ns_center_pred)[0]
-
-        # could do chamfer distance
 
         test_loss += loss * states.shape[0]
     test_loss /= len(test_loader.dataset)
@@ -358,7 +357,7 @@ def main():
             stats = train_word_dynamics(dvae, dynamics_network, optimizer, train_loader, epoch, device, args.loss_type)
             test_loss = test_word_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, device, args.loss_type)
         elif args.center_dynamics:
-            stats = train_center_dynamics(dvae, dynamics_network, optimizer, train_loader, epoch, device, args.loss_type)
+            stats = train_center_dynamics(dvae, dynamics_network, optimizer, scheduler, train_loader, epoch, device, args.loss_type)
             test_loss = test_center_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, device, args.loss_type)
         else:
             stats = train_dynamics(dvae, dynamics_network, optimizer, train_loader, epoch, device, args.loss_type)
