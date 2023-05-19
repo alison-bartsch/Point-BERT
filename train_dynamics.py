@@ -334,7 +334,7 @@ def main():
     optimizer = optim.Adam(parameters, lr=args.lr, weight_decay=args.weight_decay)
     scheduler = MultiStepLR(optimizer,
                     # milestones=[25, 50, 100, 150, 200, 300],
-                    milestones=[50, 100, 200, 400],
+                    milestones=[750],
                     gamma=0.25)
 
     # load_name = join('out', args.load_path)
@@ -399,7 +399,7 @@ if __name__ == '__main__':
     # Learning Parameters
     parser.add_argument('--lr', type=float, default=1e-3, help='base learning rate for batch size 128 (default: 1e-3)')
     parser.add_argument('--weight_decay', type=float, default=0, help='default 0')
-    parser.add_argument('--epochs', type=int, default=500, help='default: 100')
+    parser.add_argument('--epochs', type=int, default=750, help='default: 100')
     parser.add_argument('--log_interval', type=int, default=1, help='default: 1')
     parser.add_argument('--batch_size', type=int, default=32, help='default 32')
 
