@@ -322,9 +322,17 @@ class DiscreteVAE(nn.Module):
 
         bs, g, _, _ = coarse.shape
 
+        # print("\nCoars shape: ", coarse.size())
+        # print("Fine shape: ", fine.size())
+        # print("group gt: ", group_gt.size())
+
         coarse = coarse.reshape(bs*g, -1, 3).contiguous()
         fine = fine.reshape(bs*g, -1, 3).contiguous()
         group_gt = group_gt.reshape(bs*g, -1, 3).contiguous()
+
+        # print("Coars shape: ", coarse.size())
+        # print("Fine shape: ", fine.size())
+        # print("group gt: ", group_gt.size())
 
         loss_coarse_block = self.loss_func_cdl1(coarse, group_gt)
         loss_fine_block = self.loss_func_cdl1(fine, group_gt)
@@ -334,8 +342,12 @@ class DiscreteVAE(nn.Module):
         return loss_recon
     
     def recon_center_loss(self, ctr, gt):
-        bs, g, _ = ctr.shape
+        l1_loss = self.loss_func_cdl1(ctr, gt)
+        l2_loss = self.loss_func_cdl2(ctr, gt)
+        recon_loss = l1_loss + l2_loss
+        return recon_loss
         
+
 
     def get_loss(self, ret, gt):
 
@@ -402,13 +414,8 @@ class DiscreteVAE(nn.Module):
         neighborhood, center = self.group_divider(inp)
         logits = self.encoder(neighborhood)   #  B G C
         logits = self.dgcnn_1(logits, center) #  B G N
-        # print("\nLogits shape: ", logits.size()) # 32, 64, 8192
         soft_one_hot = F.gumbel_softmax(logits, tau = temperature, dim = 2, hard = hard) # B G N
         sampled = torch.einsum('b g n, n c -> b g c', soft_one_hot, self.codebook) # B G C
-        # print("\nNeighborhood shape: ", neighborhood.size()) # 32, 64, 32, 3
-        # print("\nCenter Shape: ", center.size()) # 32, 64, 3
-        # print("Codebook Shape: ", self.codebook.size()) # 8192, 256
-        # print("Sampled size: ", sampled.size()) # 32, 64, 256 
         return sampled, neighborhood, center, logits
     
     def next_state_encode(self, inp, center, neighborhood, recompute_neighborhood=True, temperature = 1., hard = True):
@@ -417,7 +424,6 @@ class DiscreteVAE(nn.Module):
             neighborhood, center = self.group_divider.get_neighborhood(input, center)
         logits = self.encoder(neighborhood)   #  B G C
         logits = self.dgcnn_1(logits, center) #  B G N
-        # print("\nLogits shape: ", logits.size()) # 32, 64, 8192
         soft_one_hot = F.gumbel_softmax(logits, tau = temperature, dim = 2, hard = hard) # B G N
         sampled = torch.einsum('b g n, n c -> b g c', soft_one_hot, self.codebook) # B G C
         return sampled, neighborhood, center, logits

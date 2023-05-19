@@ -148,7 +148,8 @@ def train_center_dynamics(dvae, dynamics_network, optimizer, scheduler, train_lo
         ns_center_pred = dynamics_network(center_state, actions).to(device)
         # loss_func = nn.MSELoss()
         # loss = loss_func(center_next_states, ns_center_pred)
-        loss = chamfer_distance(center_next_states, ns_center_pred)[0]
+        # loss = chamfer_distance(center_next_states, ns_center_pred)[0]
+        loss = dvae.recon_center_loss(ns_center_pred, center_next_states)
 
         optimizer.zero_grad()
         loss.backward()
@@ -184,7 +185,8 @@ def test_center_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, 
         # try mse loss
         # loss_func = nn.MSELoss()
         # loss = loss_func(center_next_states, ns_center_pred)
-        loss = chamfer_distance(center_next_states, ns_center_pred)[0]
+        # loss = chamfer_distance(center_next_states, ns_center_pred)[0]
+        loss = dvae.recon_center_loss(ns_center_pred, center_next_states)
 
         test_loss += loss * states.shape[0]
     test_loss /= len(test_loader.dataset)
@@ -210,6 +212,7 @@ def train_dynamics(dvae, dynamics_network, optimizer, train_loader, epoch, devic
         if loss_type == 'cd':
             # reconstruct predicted next state
             ret_recon_next = dvae.decode(z_pred_next_states, neighborhood, center, logits, states) #.to(device)
+            # _ = dvae.recon_loss(ret_recon_next, next_states)
             _, neighborhood_ns, _, _ = dvae.encode(next_states)
             ret = (ret_recon_next[0], ret_recon_next[1], ret_recon_next[2], ret_recon_next[3], neighborhood_ns, ret_recon_next[5])
             loss = dvae.recon_loss(ret, next_states)
@@ -330,7 +333,8 @@ def main():
     parameters = list(dynamics_network.parameters())
     optimizer = optim.Adam(parameters, lr=args.lr, weight_decay=args.weight_decay)
     scheduler = MultiStepLR(optimizer,
-                    milestones=[25, 50, 100, 150, 200, 300],
+                    # milestones=[25, 50, 100, 150, 200, 300],
+                    milestones=[50, 100, 200, 400],
                     gamma=0.25)
 
     # load_name = join('out', args.load_path)
@@ -402,7 +406,7 @@ if __name__ == '__main__':
     # Action and Cloud Parameters
     parser.add_argument('--a_dim', type=int, default=5, help='dimension of the action')
     parser.add_argument('--enc_dim', type=int, default=16, help='dimension of the action')
-    parser.add_argument('--loss_type', type=str, default='mse', help='[cos, mse, cd, both]')
+    parser.add_argument('--loss_type', type=str, default='cd', help='[cos, mse, cd, both]')
     parser.add_argument('--n_pts', type=int, default=2048, help='number of points in point cloud') 
     parser.add_argument('--pcl_type', type=str, default='shell_scaled', help='options: dense_centered, dense_scaled, shell_centered, shell_scaled')
     parser.add_argument('--word_dynamics', type=bool, default=False, help='dynamics model at word-level or global')                                                                                
@@ -410,7 +414,7 @@ if __name__ == '__main__':
 
     # Other
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--name', type=str, default='exp12_center_pointnet', help='folder name results are stored into')
+    parser.add_argument('--name', type=str, default='exp15_center_pointnet', help='folder name results are stored into')
     args = parser.parse_args()
 
     main()
