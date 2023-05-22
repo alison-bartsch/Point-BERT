@@ -1,6 +1,7 @@
 import open3d as o3d
 import numpy as np
 from scipy.spatial.distance import cdist
+from scipy.spatial import KDTree
 
 from models.dvae import *
 
@@ -137,23 +138,46 @@ pcl.colors = o3d.utility.Vector3dVector(pcl_colors)
 # o3d.visualization.draw_geometries([pcl, og_pcl])
 
 # ------- determine the closes point pairs -------
-dists = square_distance(s_ctr, t_ctr) # dist shape [1, s_pts, t_pts]
-idxs = torch.argmin(torch.squeeze(dists, 0), dim=1) # indices of t_ctr that are the closest to s_ctr
-s_idxs = torch.linspace(0, dists.size()[1] - 1, dists.size()[1]).to(torch.int32)
-print("\ns idxs: ", s_idxs)
-distances = torch.squeeze(dists, 0)[s_idxs.long(), idxs.long()]
+state_tree = KDTree(target_centers)
+dists, idxs = state_tree.query(state_centers)
+distances = dists.reshape(-1,1)
+print("distances shape: ", distances.shape)
+closest_pairs = np.column_stack((state_centers, target_centers[idxs]))
+closest_pairs = np.concatenate((closest_pairs, distances), axis=1)
+print("closest pairs shape: ", closest_pairs.shape)
+sorted_pairs = closest_pairs[(-distances).argsort()]
+print("sorted pairs shape: ", sorted_pairs.shape)
+# assert False
 
-idx = idxs.detach().cpu().numpy()
-dst = distances.detach().cpu().numpy()
-combined = zip(idx,dst)
-sort = sorted(combined, key=lambda x: x[1], reverse=True)
-idx = [x[0] for x in sort]
-dst = [x[1] for x in sort]
+# print("closest pairs: ", closest_pairs)
+# print("\nClosest pairs shape: ", closest_pairs.shape)
 
-for i in range(len(idx)):
-    state_pt = state_centers[i,:]
-    target_pt = target_centers[idx[i],:]
+# dists = square_distance(s_ctr, t_ctr) # dist shape [1, s_pts, t_pts]
+# idxs = torch.argmin(torch.squeeze(dists, 0), dim=1) # indices of t_ctr that are the closest to s_ctr
+# s_idxs = torch.linspace(0, dists.size()[1] - 1, dists.size()[1]).to(torch.int32)
+# print("\ns idxs: ", s_idxs)
+# distances = torch.squeeze(dists, 0)[s_idxs.long(), idxs.long()]
+
+# idx = idxs.detach().cpu().numpy()
+# dst = distances.detach().cpu().numpy()
+# combined = zip(idx,dst)
+# sort = sorted(combined, key=lambda x: x[1], reverse=True)
+# idx = [x[0] for x in sort]
+# dst = [x[1] for x in sort]
+
+# for i in range(len(idx)):
+#     state_pt = state_centers[i,:]
+#     target_pt = target_centers[idx[i],:]
+#     pair = np.vstack((np.expand_dims(state_pt, axis=0), np.expand_dims(target_pt, axis=0)))
+
+#     print("dst: ", dst[i])
+
+for i in range(len(sorted_pairs)):
+    state_pt = sorted_pairs[i,0,0:3]
+    target_pt = sorted_pairs[i,0,3:6]
     pair = np.vstack((np.expand_dims(state_pt, axis=0), np.expand_dims(target_pt, axis=0)))
+
+    print("Pair: ", pair)
 
     point_pair = o3d.geometry.PointCloud()
     point_pair.points = o3d.utility.Vector3dVector(pair)

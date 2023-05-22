@@ -319,6 +319,7 @@ class DiscreteVAE(nn.Module):
 
     def recon_loss(self, ret, gt):
         whole_coarse, whole_fine, coarse, fine, group_gt, _ = ret
+        # print("\nGroup gt: ", group_gt.size())
 
         bs, g, _, _ = coarse.shape
 
@@ -450,6 +451,21 @@ class DiscreteVAE(nn.Module):
         assert fine.size(2) == self.group_size
         ret = (whole_coarse, whole_fine, coarse, fine, neighborhood, logits)
         return ret
+    
+    # def reconstruct(self, sampled, center, inp):
+    #     feature = self.dgcnn_2(sampled, center)
+    #     coarse, fine = self.decoder(feature)
+
+    #     print("\nfine: ", fine)
+    #     print("fine shape: ", fine.size())
+
+    #     # with torch.no_grad():
+    #     whole_fine = (fine + center.unsqueeze(2)).reshape(inp.size(0), -1, 3)
+    #     print("whole fine size: ", whole_fine.size())
+    #         # whole_coarse = (coarse + center.unsqueeze(2)).reshape(inp.size(0), -1, 3)
+
+    #     assert fine.size(2) == self.group_size
+    #     return whole_fine
 
     def codebook_onehot(self, word):
         word_reshaped = word.view(1,-1,word.size()[-1])

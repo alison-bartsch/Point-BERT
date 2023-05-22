@@ -42,6 +42,122 @@ def get_dataloaders(pcl_type, word_dynamics, dvae=None):
     test_loader = data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, pin_memory=True)
     return train_loader, test_loader
 
+def train_center_word_dynamics(dvae, center_network, dynamics_network, optimizer, scheduler, train_loader, epoch, device, loss_type):
+    dvae.eval()
+    center_network.eval()
+    dynamics_network.train()
+
+    # data loader
+        # work with a batch size of 1 (have an error throw if larger)
+        # (1) get the closest pairs 
+
+    # reconstruction loss version
+        # do the recon loss on global cloud (slow)
+        # do recon loss on each cluster (would also require the closest pairs)
+
+    # ---- current version: global recon loss -------
+    stats = utils.Stats()
+    pbar = tqdm(total=len(train_loader.dataset)*64)
+    parameters = list(dynamics_network.parameters())
+
+    for states, next_states, actions, word_idx in train_loader:
+        states = states.cuda()
+        next_states = states.cuda()
+        actions = actions.cuda()
+
+        z_states, neighborhood, state_centers, _ = dvae.encode(states) 
+        batch_size= states.size()[0]
+        vocab_size = 64
+        ns_centers = center_network(state_centers, actions)
+        ns_centers_flattened = ns_centers.reshape(batch_size*ns_centers.size()[1], ns_centers.size()[2])
+
+        vocab = z_states.reshape(batch_size*z_states.size()[1], z_states.size()[2])
+        a = actions.repeat(1, vocab_size)
+        a = a.view(batch_size*vocab_size, 5)
+
+        ns_logits = dynamics_network(vocab, ns_centers_flattened, a) #.to(device)
+        ns_logits = ns_logits.reshape(batch_size, vocab_size, ns_logits.size()[1])
+        latent_sampled = dvae.latent_logits_sample(ns_logits)
+        ret_recon_next = dvae.decode(latent_sampled, neighborhood, ns_centers, ns_logits, states) #.to(device)
+   
+        z_next_states, ns_neighborhood, next_state_centers, _ = dvae.encode(next_states) 
+        ret = ret_recon_next[0], ret_recon_next[1], ret_recon_next[2], ret_recon_next[3], ns_neighborhood, ret_recon_next[5]
+        loss = dvae.recon_loss(ret, next_states)
+
+
+        # # ----- for batch size = 1 -------        
+        # ns_centers = center_network(state_centers, actions)
+        # ns_centers = ns_centers.squeeze()
+        # vocab = z_states.squeeze()
+        # print("\nvocab shape: ", vocab.size())
+        # actions = torch.tile(actions, (vocab.size()[0], 1))
+
+        # print("\nns_centers shape: ", ns_centers.size())
+
+        # ns_logits = dynamics_network(vocab, ns_centers, actions) #.to(device)
+        # print("\nns_logits size: ", ns_logits.size())
+        # ns_logits = torch.unsqueeze(ns_logits, 0)
+        # ns_centers = torch.unsqueeze(ns_centers, 0)
+        # latent_sampled = dvae.latent_logits_sample(ns_logits)
+
+        # ret_recon_next = dvae.decode(latent_sampled, neighborhood, ns_centers, ns_logits, states) #.to(device)
+        # recon_pcl = ret_recon_next[1]
+
+        # loss = dvae.recon_center_loss(recon_pcl, next_states)
+        # print("\nloss: ", loss)
+        # assert False
+
+        optimizer.zero_grad()
+        loss.backward()
+        nn.utils.clip_grad_norm_(parameters, 20)
+        optimizer.step()
+
+        stats.add('train_loss', loss.item())
+        avg_loss = np.mean(stats['train_loss'][-50:])
+
+        pbar.set_description(f'Epoch {epoch}, Train Loss {avg_loss:.4f}')
+        pbar.update(vocab.shape[0])
+    pbar.close()
+    scheduler.step()
+    return stats
+
+
+def test_center_word_dynamics(dvae, center_network, dynamics_network, optimizer, scheduler, test_loader, epoch, device, loss_type):
+    dvae.eval()
+    center_network.eval()
+    dynamics_network.eval()
+
+    test_loss = 0
+    for states, next_states, actions, word_idx in test_loader:
+        with torch.no_grad():
+            states = states.cuda()
+            next_states = states.cuda()
+            actions = actions.cuda()
+
+            z_states, neighborhood, state_centers, _ = dvae.encode(states) 
+            batch_size= states.size()[0]
+            vocab_size = 64
+            ns_centers = center_network(state_centers, actions)
+            ns_centers_flattened = ns_centers.reshape(batch_size*ns_centers.size()[1], ns_centers.size()[2])
+
+            vocab = z_states.reshape(batch_size*z_states.size()[1], z_states.size()[2])
+            a = actions.repeat(1, vocab_size)
+            a = a.view(batch_size*vocab_size, 5)
+
+            ns_logits = dynamics_network(vocab, ns_centers_flattened, a) #.to(device)
+            ns_logits = ns_logits.reshape(batch_size, vocab_size, ns_logits.size()[1])
+            latent_sampled = dvae.latent_logits_sample(ns_logits)
+            ret_recon_next = dvae.decode(latent_sampled, neighborhood, ns_centers, ns_logits, states) #.to(device)
+    
+            z_next_states, ns_neighborhood, next_state_centers, _ = dvae.encode(next_states) 
+            ret = ret_recon_next[0], ret_recon_next[1], ret_recon_next[2], ret_recon_next[3], ns_neighborhood, ret_recon_next[5]
+            loss = dvae.recon_loss(ret, next_states)
+
+            test_loss += loss * vocab.shape[0]
+    test_loss /= (len(test_loader.dataset)*64)
+    print(f'Epoch {epoch}, Test Loss: {test_loss:.4f}')
+    return test_loss.item()
+
 
 def train_word_dynamics(dvae, dynamics_network, optimizer, scheduler, train_loader, epoch, device, loss_type):
     dvae.eval()
@@ -57,7 +173,6 @@ def train_word_dynamics(dvae, dynamics_network, optimizer, scheduler, train_load
         actions = actions.cuda()
 
         z_states, neighborhood, centers, _ = dvae.encode(states) 
-        # gt_z_next_states, _, _, _ = dvae.encode(next_states)
         gt_z_next_states, _, _, _ = dvae.next_state_encode(next_states, centers, neighborhood)
 
         if states.size()[0] > 1:
@@ -150,6 +265,8 @@ def train_center_dynamics(dvae, dynamics_network, optimizer, scheduler, train_lo
         # loss = loss_func(center_next_states, ns_center_pred)
         # loss = chamfer_distance(center_next_states, ns_center_pred)[0]
         loss = dvae.recon_center_loss(ns_center_pred, center_next_states)
+        print("\nLoss: ", loss)
+        assert False
 
         optimizer.zero_grad()
         loss.backward()
@@ -358,8 +475,12 @@ def main():
     for epoch in range(args.epochs):
         # Train
         if args.word_dynamics:
-            stats = train_word_dynamics(dvae, dynamics_network, optimizer, train_loader, epoch, device, args.loss_type)
-            test_loss = test_word_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, device, args.loss_type)
+            checkpoint = torch.load('dvae_dynamics_experiments/exp16_center_pointnet/checkpoint', map_location=torch.device('cpu'))
+            center_network = checkpoint['dynamics_network'].to(device)
+            stats = train_center_word_dynamics(dvae, center_network, dynamics_network, optimizer, scheduler, train_loader, epoch, device, args.loss_type)
+            # stats = train_word_dynamics(dvae, dynamics_network, optimizer, train_loader, epoch, device, args.loss_type)
+            test_loss = test_center_word_dynamics(dvae, center_network, dynamics_network, optimizer, scheduler, test_loader, epoch, device, args.loss_type)
+            # test_loss = test_word_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, device, args.loss_type)
         elif args.center_dynamics:
             stats = train_center_dynamics(dvae, dynamics_network, optimizer, scheduler, train_loader, epoch, device, args.loss_type)
             test_loss = test_center_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, device, args.loss_type)
@@ -397,9 +518,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # Learning Parameters
-    parser.add_argument('--lr', type=float, default=1e-3, help='base learning rate for batch size 128 (default: 1e-3)')
+    parser.add_argument('--lr', type=float, default=1e-4, help='base learning rate for batch size 128 (default: 1e-3)')
     parser.add_argument('--weight_decay', type=float, default=0, help='default 0')
-    parser.add_argument('--epochs', type=int, default=750, help='default: 100')
+    parser.add_argument('--epochs', type=int, default=1500, help='default: 100')
     parser.add_argument('--log_interval', type=int, default=1, help='default: 1')
     parser.add_argument('--batch_size', type=int, default=32, help='default 32')
 
@@ -409,12 +530,12 @@ if __name__ == '__main__':
     parser.add_argument('--loss_type', type=str, default='cd', help='[cos, mse, cd, both]')
     parser.add_argument('--n_pts', type=int, default=2048, help='number of points in point cloud') 
     parser.add_argument('--pcl_type', type=str, default='shell_scaled', help='options: dense_centered, dense_scaled, shell_centered, shell_scaled')
-    parser.add_argument('--word_dynamics', type=bool, default=False, help='dynamics model at word-level or global')                                                                                
-    parser.add_argument('--center_dynamics',type=bool, default=True, help='dynamics model for the centroids' )
+    parser.add_argument('--word_dynamics', type=bool, default=True, help='dynamics model at word-level or global')                                                                                
+    parser.add_argument('--center_dynamics',type=bool, default=False, help='dynamics model for the centroids' )
 
     # Other
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--name', type=str, default='exp15_center_pointnet', help='folder name results are stored into')
+    parser.add_argument('--name', type=str, default='exp17_word_dynamics', help='folder name results are stored into')
     args = parser.parse_args()
 
     main()
