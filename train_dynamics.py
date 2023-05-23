@@ -424,11 +424,23 @@ def train_dgcnn(dvae, dynamics_network, optimizer, scheduler, train_loader, epoc
         next_states = states.cuda()
         actions = actions.cuda()
 
-        states_sampled, _, states_center, _ = dvae.encode(states) #.to(device)
+        states_sampled, states_neighborhood, states_center, states_logits = dvae.encode(states) #.to(device)
         pred_features = dynamics_network(states_sampled, states_center, actions)
         ns_features = dvae.encode_features(next_states)
-        loss_func = nn.MSELoss()
-        loss = loss_func(ns_features, pred_features)
+        print("\nns features shape: ", ns_features.size())
+
+        if loss_type == 'mse':
+            loss_func = nn.MSELoss()
+            loss = loss_func(ns_features, pred_features)
+        elif loss_type == 'cd':
+            ret = dvae.decode_features(pred_features, states_neighborhood, states_center, states_logits, states)
+            _, neighborhood_ns, _, _ = dvae.encode(next_states)
+            combo_ret = (ret[0], ret[1], ret[2], ret[3], neighborhood_ns, ret[5])
+            loss = dvae.recon_loss(combo_ret, next_states)
+        elif loss_type == 'cos':
+            loss_func = nn.CosineSimilarity(dim=2)
+            word_losses = 1 - loss_func(ns_features, pred_features)
+            loss = word_losses # torch.mean(loss)
 
         optimizer.zero_grad()
         loss.backward()
@@ -455,11 +467,22 @@ def test_dgcnn(dvae, dynamics_network, optimizer, test_loader, epoch, device, lo
             next_states = states.cuda()
             actions = actions.cuda()
 
-            states_sampled, _, states_center, _ = dvae.encode(states) #.to(device)
+            states_sampled, states_neighborhood, states_center, states_logits = dvae.encode(states) #.to(device)
             pred_features = dynamics_network(states_sampled, states_center, actions)
             ns_features = dvae.encode_features(next_states)
-            loss_func = nn.MSELoss()
-            loss = loss_func(ns_features, pred_features)
+
+            if loss_type == 'mse':
+                loss_func = nn.MSELoss()
+                loss = loss_func(ns_features, pred_features)
+            elif loss_type == 'cd':
+                ret = dvae.decode_features(pred_features, states_neighborhood, states_center, states_logits, states)
+                _, neighborhood_ns, _, _ = dvae.encode(next_states)
+                combo_ret = (ret[0], ret[1], ret[2], ret[3], neighborhood_ns, ret[5])
+                loss = dvae.recon_loss(combo_ret, next_states)
+            elif loss_type == 'cos':
+                loss_func = nn.CosineSimilarity(dim=2)
+                word_losses = 1 - loss_func(ns_features, pred_features)
+                loss = word_losses # torch.mean(loss)
 
         test_loss += loss * states.shape[0]
     test_loss /= len(test_loader.dataset)
@@ -511,8 +534,8 @@ def main():
     optimizer = optim.Adam(parameters, lr=args.lr, weight_decay=args.weight_decay)
     scheduler = MultiStepLR(optimizer,
                     # milestones=[25, 50, 100, 150, 200, 300],
-                    milestones=[750],
-                    gamma=0.25)
+                    milestones=[25, 50, 100, 150, 200, 300],
+                    gamma=0.1)
 
     # load_name = join('out', args.load_path)
     # checkpoint = torch.load(join(load_name, 'checkpoint'))
@@ -590,7 +613,7 @@ if __name__ == '__main__':
     # Action and Cloud Parameters
     parser.add_argument('--a_dim', type=int, default=5, help='dimension of the action')
     parser.add_argument('--enc_dim', type=int, default=16, help='dimension of the action')
-    parser.add_argument('--loss_type', type=str, default='cd', help='[cos, mse, cd, both]')
+    parser.add_argument('--loss_type', type=str, default='mse', help='[cos, mse, cd, both]')
     parser.add_argument('--n_pts', type=int, default=2048, help='number of points in point cloud') 
     parser.add_argument('--pcl_type', type=str, default='shell_scaled', help='options: dense_centered, dense_scaled, shell_centered, shell_scaled')
     parser.add_argument('--word_dynamics', type=bool, default=False, help='dynamics model at word-level or global')                                                                                
@@ -599,7 +622,7 @@ if __name__ == '__main__':
 
     # Other
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--name', type=str, default='exp18_word_dynamics', help='folder name results are stored into')
+    parser.add_argument('--name', type=str, default='exp19_dgcnn', help='folder name results are stored into')
     args = parser.parse_args()
 
     main()

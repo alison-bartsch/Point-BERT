@@ -451,11 +451,19 @@ class DiscreteVAE(nn.Module):
         sampled = torch.einsum('b g n, n c -> b g c', soft_one_hot, self.codebook) # B G C
         feature = self.dgcnn_2(sampled, center)
         return feature
+    
+    def decode_features(self, feature, neighborhood, center, logits, inp):
+        coarse, fine = self.decoder(feature)
+
+        with torch.no_grad():
+            whole_fine = (fine + center.unsqueeze(2)).reshape(inp.size(0), -1, 3)
+            whole_coarse = (coarse + center.unsqueeze(2)).reshape(inp.size(0), -1, 3)
+
+        assert fine.size(2) == self.group_size
+        ret = (whole_coarse, whole_fine, coarse, fine, neighborhood, logits)
+        return ret
 
     def decode(self, sampled, neighborhood, center, logits, inp):
-        print("\nsampled shape: ", sampled.size())
-        print("center shape: ", center.size())
-
         feature = self.dgcnn_2(sampled, center)
         coarse, fine = self.decoder(feature)
 
