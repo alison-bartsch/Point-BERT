@@ -1,6 +1,24 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from models.dvae import *
+
+class CGCNNDynamics(nn.Module):
+    def __init__(self, action_dims, token_dims, decoder_dims, n_tokens):
+        super(CGCNNDynamics, self).__init__()
+        self.n_tokens = n_tokens
+        self.action_dims = action_dims
+        self.token_dims = token_dims
+        self.decoder_dims = decoder_dims
+        self.input_dims = self.action_dims + self.token_dims
+        self.dgcnn = DGCNN(encoder_channel = self.input_dims, output_channel = self.decoder_dims)
+    
+    def forward(self, sampled, center, action):
+        action = torch.tile(torch.unsqueeze(action, 1), (1, self.n_tokens, 1))
+        inp = torch.concat((sampled, action), dim=2)
+        feature = self.dgcnn(inp, center)
+        return feature
+        
 
 class PointNetfeatModified(nn.Module):
     def __init__(self, global_feat = True):

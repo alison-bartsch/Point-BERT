@@ -411,6 +411,61 @@ def test_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, device,
     print(f'Epoch {epoch}, Test Loss: {test_loss:.4f}')
     return test_loss.item()
 
+def train_dgcnn(dvae, dynamics_network, optimizer, scheduler, train_loader, epoch, device, loss_type):
+    dvae.eval()
+    dynamics_network.train()
+
+    stats = utils.Stats()
+    pbar = tqdm(total=len(train_loader.dataset))
+    parameters = list(dynamics_network.parameters())
+    for states, next_states, actions in train_loader:
+
+        states = states.cuda()
+        next_states = states.cuda()
+        actions = actions.cuda()
+
+        states_sampled, _, states_center, _ = dvae.encode(states) #.to(device)
+        pred_features = dynamics_network(states_sampled, states_center, actions)
+        ns_features = dvae.encode_features(next_states)
+        loss_func = nn.MSELoss()
+        loss = loss_func(ns_features, pred_features)
+
+        optimizer.zero_grad()
+        loss.backward()
+        nn.utils.clip_grad_norm_(parameters, 20)
+        optimizer.step()
+
+        stats.add('train_loss', loss.item())
+        avg_loss = np.mean(stats['train_loss'][-50:])
+
+        pbar.set_description(f'Epoch {epoch}, Train Loss {avg_loss:.4f}')
+        pbar.update(states.shape[0])
+    pbar.close()
+    scheduler.step()
+    return stats
+
+def test_dgcnn(dvae, dynamics_network, optimizer, test_loader, epoch, device, loss_type):
+    dvae.eval()
+    dynamics_network.eval()
+
+    test_loss = 0
+    for states, next_states, actions in test_loader:
+        with torch.no_grad():
+            states = states.cuda()
+            next_states = states.cuda()
+            actions = actions.cuda()
+
+            states_sampled, _, states_center, _ = dvae.encode(states) #.to(device)
+            pred_features = dynamics_network(states_sampled, states_center, actions)
+            ns_features = dvae.encode_features(next_states)
+            loss_func = nn.MSELoss()
+            loss = loss_func(ns_features, pred_features)
+
+        test_loss += loss * states.shape[0]
+    test_loss /= len(test_loader.dataset)
+    print(f'Epoch {epoch}, Test Loss: {test_loss:.4f}')
+    return test_loss.item()
+
 def main():
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -443,6 +498,11 @@ def main():
         input_dim = dim + args.a_dim
         # dynamics_network = dynamics.CenterDynamics(input_dim, dim).to(device)
         dynamics_network = dynamics.PointNetDynamics(dim).to(device)
+    elif args.cgcnn:
+        token_dims = 256
+        decoder_dims = 256
+        n_tokens = 64
+        dynamics_network = dynamics.CGCNNDynamics(args.a_dim, token_dims, decoder_dims, n_tokens).to(device)
     else:
         z_dim = 64*256 # 8192 # 256
         input_dim = args.enc_dim*256
@@ -484,6 +544,9 @@ def main():
         elif args.center_dynamics:
             stats = train_center_dynamics(dvae, dynamics_network, optimizer, scheduler, train_loader, epoch, device, args.loss_type)
             test_loss = test_center_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, device, args.loss_type)
+        elif args.cgcnn:
+            stats = train_dgcnn(dvae, dynamics_network, optimizer, scheduler, train_loader, epoch, device, args.loss_type)
+            test_loss = test_dgcnn(dvae, dynamics_network, optimizer, test_loader, epoch, device, args.loss_type)
         else:
             stats = train_dynamics(dvae, dynamics_network, optimizer, train_loader, epoch, device, args.loss_type)
             test_loss = test_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, device, args.loss_type)
@@ -518,7 +581,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # Learning Parameters
-    parser.add_argument('--lr', type=float, default=5e-6, help='base learning rate for batch size 128 (default: 1e-3)')
+    parser.add_argument('--lr', type=float, default=1e-3, help='base learning rate for batch size 128 (default: 1e-3)')
     parser.add_argument('--weight_decay', type=float, default=0, help='default 0')
     parser.add_argument('--epochs', type=int, default=1500, help='default: 100')
     parser.add_argument('--log_interval', type=int, default=1, help='default: 1')
@@ -530,12 +593,13 @@ if __name__ == '__main__':
     parser.add_argument('--loss_type', type=str, default='cd', help='[cos, mse, cd, both]')
     parser.add_argument('--n_pts', type=int, default=2048, help='number of points in point cloud') 
     parser.add_argument('--pcl_type', type=str, default='shell_scaled', help='options: dense_centered, dense_scaled, shell_centered, shell_scaled')
-    parser.add_argument('--word_dynamics', type=bool, default=True, help='dynamics model at word-level or global')                                                                                
+    parser.add_argument('--word_dynamics', type=bool, default=False, help='dynamics model at word-level or global')                                                                                
     parser.add_argument('--center_dynamics',type=bool, default=False, help='dynamics model for the centroids' )
+    parser.add_argument('--cgcnn', type=bool, default=True, help='learn the dgcnn dynamics model')
 
     # Other
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--name', type=str, default='exp17_word_dynamics', help='folder name results are stored into')
+    parser.add_argument('--name', type=str, default='exp18_word_dynamics', help='folder name results are stored into')
     args = parser.parse_args()
 
     main()

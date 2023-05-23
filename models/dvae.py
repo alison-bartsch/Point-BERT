@@ -306,6 +306,9 @@ class DiscreteVAE(nn.Module):
         self.dgcnn_1 = DGCNN(encoder_channel = self.encoder_dims, output_channel = self.num_tokens)
         self.codebook = nn.Parameter(torch.randn(self.num_tokens, self.tokens_dims))
 
+        print("\nToken dims: ", self.tokens_dims)
+        print("Decoder Dims: ", self.decoder_dims)
+    
         self.dgcnn_2 = DGCNN(encoder_channel = self.tokens_dims, output_channel = self.decoder_dims)
         self.decoder = Decoder(encoder_channel = self.decoder_dims, num_fine = self.group_size)
         self.build_loss_func()
@@ -439,8 +442,20 @@ class DiscreteVAE(nn.Module):
         soft_one_hot = F.gumbel_softmax(logits, tau = temperature, dim = 2, hard = hard) # B G N
         sampled = torch.einsum('b g n, n c -> b g c', soft_one_hot, self.codebook) # B G C
         return sampled
+    
+    def encode_features(self, inp, temperature = 1., hard = True, **kwargs):
+        neighborhood, center = self.group_divider(inp)
+        logits = self.encoder(neighborhood)   #  B G C
+        logits = self.dgcnn_1(logits, center) #  B G N
+        soft_one_hot = F.gumbel_softmax(logits, tau = temperature, dim = 2, hard = hard) # B G N
+        sampled = torch.einsum('b g n, n c -> b g c', soft_one_hot, self.codebook) # B G C
+        feature = self.dgcnn_2(sampled, center)
+        return feature
 
     def decode(self, sampled, neighborhood, center, logits, inp):
+        print("\nsampled shape: ", sampled.size())
+        print("center shape: ", center.size())
+
         feature = self.dgcnn_2(sampled, center)
         coarse, fine = self.decoder(feature)
 
