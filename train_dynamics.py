@@ -518,7 +518,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # Learning Parameters
-    parser.add_argument('--lr', type=float, default=1e-4, help='base learning rate for batch size 128 (default: 1e-3)')
+    parser.add_argument('--lr', type=float, default=5e-6, help='base learning rate for batch size 128 (default: 1e-3)')
     parser.add_argument('--weight_decay', type=float, default=0, help='default 0')
     parser.add_argument('--epochs', type=int, default=1500, help='default: 100')
     parser.add_argument('--log_interval', type=int, default=1, help='default: 1')
