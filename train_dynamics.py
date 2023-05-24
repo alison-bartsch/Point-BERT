@@ -427,7 +427,7 @@ def train_dgcnn(dvae, dynamics_network, optimizer, scheduler, train_loader, epoc
         states_sampled, states_neighborhood, states_center, states_logits = dvae.encode(states) #.to(device)
         pred_features = dynamics_network(states_sampled, states_center, actions)
         ns_features = dvae.encode_features(next_states)
-        print("\nns features shape: ", ns_features.size())
+        # print("\nns features shape: ", ns_features.size())
 
         if loss_type == 'mse':
             loss_func = nn.MSELoss()
@@ -534,8 +534,9 @@ def main():
     optimizer = optim.Adam(parameters, lr=args.lr, weight_decay=args.weight_decay)
     scheduler = MultiStepLR(optimizer,
                     # milestones=[25, 50, 100, 150, 200, 300],
-                    milestones=[25, 50, 100, 150, 200, 300],
-                    gamma=0.1)
+                    # milestones=[25, 50, 100, 150, 250, 350, 500],
+                    milestones=[500],
+                    gamma=0.5)
 
     # load_name = join('out', args.load_path)
     # checkpoint = torch.load(join(load_name, 'checkpoint'))
@@ -604,7 +605,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # Learning Parameters
-    parser.add_argument('--lr', type=float, default=1e-3, help='base learning rate for batch size 128 (default: 1e-3)')
+    parser.add_argument('--lr', type=float, default=1e-4, help='base learning rate for batch size 128 (default: 1e-3)')
     parser.add_argument('--weight_decay', type=float, default=0, help='default 0')
     parser.add_argument('--epochs', type=int, default=1500, help='default: 100')
     parser.add_argument('--log_interval', type=int, default=1, help='default: 1')
@@ -613,7 +614,7 @@ if __name__ == '__main__':
     # Action and Cloud Parameters
     parser.add_argument('--a_dim', type=int, default=5, help='dimension of the action')
     parser.add_argument('--enc_dim', type=int, default=16, help='dimension of the action')
-    parser.add_argument('--loss_type', type=str, default='mse', help='[cos, mse, cd, both]')
+    parser.add_argument('--loss_type', type=str, default='cd', help='[cos, mse, cd, both]')
     parser.add_argument('--n_pts', type=int, default=2048, help='number of points in point cloud') 
     parser.add_argument('--pcl_type', type=str, default='shell_scaled', help='options: dense_centered, dense_scaled, shell_centered, shell_scaled')
     parser.add_argument('--word_dynamics', type=bool, default=False, help='dynamics model at word-level or global')                                                                                
@@ -622,7 +623,7 @@ if __name__ == '__main__':
 
     # Other
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--name', type=str, default='exp19_dgcnn', help='folder name results are stored into')
+    parser.add_argument('--name', type=str, default='exp21_dgcnn', help='folder name results are stored into')
     args = parser.parse_args()
 
     main()
