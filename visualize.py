@@ -181,12 +181,12 @@ Visualize center dynamics model only
 #     og_pcl.colors = o3d.utility.Vector3dVector(og_colors)
 #     # o3d.visualization.draw_geometries([og_pcl])
 
-#     # create gt state point cloud [GREEN]
-#     s = center.squeeze().detach().cpu().numpy()
-#     s_pcl = o3d.geometry.PointCloud()
-#     s_pcl.points = o3d.utility.Vector3dVector(s)
-#     s_colors = np.tile(np.array([0, 1, 0]), (len(s),1))
-#     s_pcl.colors = o3d.utility.Vector3dVector(s_colors)
+#     # # create gt state point cloud [GREEN]
+#     # s = center.squeeze().detach().cpu().numpy()
+#     # s_pcl = o3d.geometry.PointCloud()
+#     # s_pcl.points = o3d.utility.Vector3dVector(s)
+#     # s_colors = np.tile(np.array([0, 1, 0]), (len(s),1))
+#     # s_pcl.colors = o3d.utility.Vector3dVector(s_colors)
 
 #     # create next state predicted point cloud [RED]
 #     pred = ns_center_pred.squeeze().detach().cpu().numpy()
@@ -194,8 +194,8 @@ Visualize center dynamics model only
 #     pred_pcl.points = o3d.utility.Vector3dVector(pred)
 #     pred_colors = np.tile(np.array([1, 0, 0]), (len(pred),1))
 #     pred_pcl.colors = o3d.utility.Vector3dVector(pred_colors)
-#     o3d.visualization.draw_geometries([pred_pcl, s_pcl, og_pcl])
-#     # o3d.visualization.draw_geometries([og_pcl, s_pcl])
+#     # o3d.visualization.draw_geometries([pred_pcl, s_pcl, og_pcl])
+#     o3d.visualization.draw_geometries([og_pcl, pred_pcl])
 # assert False
 
 
@@ -248,12 +248,12 @@ Visualize center cluster dynamics model
 #     og_pcl.colors = o3d.utility.Vector3dVector(og_colors)
 #     # o3d.visualization.draw_geometries([og_pcl])
 
-#     # create gt state point cloud [GREEN]
-#     s = state.squeeze().detach().cpu().numpy()
-#     s_pcl = o3d.geometry.PointCloud()
-#     s_pcl.points = o3d.utility.Vector3dVector(s)
-#     s_colors = np.tile(np.array([0, 1, 0]), (len(s),1))
-#     s_pcl.colors = o3d.utility.Vector3dVector(s_colors)
+#     # # create gt state point cloud [GREEN]
+#     # s = state.squeeze().detach().cpu().numpy()
+#     # s_pcl = o3d.geometry.PointCloud()
+#     # s_pcl.points = o3d.utility.Vector3dVector(s)
+#     # s_colors = np.tile(np.array([0, 1, 0]), (len(s),1))
+#     # s_pcl.colors = o3d.utility.Vector3dVector(s_colors)
 
 #     state = state.cuda()
 #     next_state = next_state.cuda()
@@ -289,8 +289,8 @@ Visualize center cluster dynamics model
 #     pcl_colors = np.tile(np.array([1, 0, 0]), (len(recon_pcl),1))
 #     pcl.colors = o3d.utility.Vector3dVector(pcl_colors)
 #     # o3d.visualization.draw_geometries([pcl])
-#     # o3d.visualization.draw_geometries([og_pcl, pcl])
-#     o3d.visualization.draw_geometries([pcl, s_pcl, og_pcl])
+#     o3d.visualization.draw_geometries([og_pcl, pcl])
+#     # o3d.visualization.draw_geometries([pcl, s_pcl, og_pcl])
 
 # assert False
 
@@ -386,7 +386,8 @@ Visualize DGCNN dynamics model
 # define the action space and dynamics loss type
 path = '/home/alison/Clay_Data/Fully_Processed/All_Shapes'
 dvae_path = 'experiments/dvae/ShapeNet55_models/test_dvae/ckpt-best.pth'
-dynamics_path = 'dvae_dynamics_experiments/exp18_word_dynamics' # exp3_twonetworks_mse' # exp1_twonetworks'
+dynamics_path = 'dvae_dynamics_experiments/exp21_dgcnn' # exp3_twonetworks_mse' # exp1_twonetworks'
+center_dynamics_path = 'dvae_dynamics_experiments/exp16_center_pointnet'
 # actions = np.load(path + '/action_normalized.npy')
 
 # load the dvae model
@@ -401,6 +402,10 @@ dvae.eval()
 # load the checkpoint
 checkpoint = torch.load(dynamics_path + '/checkpoint', map_location=torch.device('cpu'))
 dynamics_network = checkpoint['dynamics_network'].to(device)
+
+# load the checkpoint
+ctr_checkpoint = torch.load(center_dynamics_path + '/checkpoint', map_location=torch.device('cpu'))
+ctr_network = ctr_checkpoint['dynamics_network'].to(device)
 
 # initialize the dataset
 dataset = DemoActionDataset(path, 'shell_scaled')
@@ -428,10 +433,11 @@ for index in test_samples:
 
     z_states, neighborhood, center, logits = dvae.encode(state) #.to(device)
     pred_features = dynamics_network(z_states, center, action)
+    ns_center = ctr_network(center, action).to(device)
 
     # z_pred_next_states = dynamics_network(z_states, action).to(device)
     # ret_recon_next = dvae.decode(z_pred_next_states, neighborhood, center, logits, state) #.to(device)
-    ret_recon_next = dvae.decode_features(pred_features, neighborhood, center, logits, state)
+    ret_recon_next = dvae.decode_features(pred_features, neighborhood, ns_center, logits, state)
     recon_pcl = ret_recon_next[1]
 
     # visualize reconstructed cloud
