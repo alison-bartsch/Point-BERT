@@ -386,9 +386,9 @@ Visualize DGCNN dynamics model
 # define the action space and dynamics loss type
 path = '/home/alison/Clay_Data/Fully_Processed/All_Shapes'
 dvae_path = 'experiments/dvae/ShapeNet55_models/test_dvae/ckpt-best.pth'
-dynamics_path = 'dvae_dynamics_experiments/exp21_dgcnn' # exp3_twonetworks_mse' # exp1_twonetworks'
-center_dynamics_path = 'dvae_dynamics_experiments/exp16_center_pointnet'
-# actions = np.load(path + '/action_normalized.npy')
+# dynamics_path = 'dvae_dynamics_experiments/exp21_dgcnn' # exp3_twonetworks_mse' # exp1_twonetworks'
+# center_dynamics_path = 'dvae_dynamics_experiments/exp16_center_pointnet'
+dynamics_path = 'dvae_dynamics_experiments/exp22_dgcnn_center'
 
 # load the dvae model
 config = cfg_from_yaml_file('cfgs/Dynamics/dvae.yaml')
@@ -401,11 +401,12 @@ dvae.eval()
 
 # load the checkpoint
 checkpoint = torch.load(dynamics_path + '/checkpoint', map_location=torch.device('cpu'))
-dynamics_network = checkpoint['dynamics_network'].to(device)
+dynamics_network = checkpoint['feature_dynamics_network'].to(device)
+ctr_network = checkpoint['center_dynamics_network'].to(device)
 
-# load the checkpoint
-ctr_checkpoint = torch.load(center_dynamics_path + '/checkpoint', map_location=torch.device('cpu'))
-ctr_network = ctr_checkpoint['dynamics_network'].to(device)
+# # load the checkpoint
+# ctr_checkpoint = torch.load(center_dynamics_path + '/checkpoint', map_location=torch.device('cpu'))
+# ctr_network = ctr_checkpoint['dynamics_network'].to(device)
 
 # initialize the dataset
 dataset = DemoActionDataset(path, 'shell_scaled')

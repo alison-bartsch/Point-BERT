@@ -265,8 +265,6 @@ def train_center_dynamics(dvae, dynamics_network, optimizer, scheduler, train_lo
         # loss = loss_func(center_next_states, ns_center_pred)
         # loss = chamfer_distance(center_next_states, ns_center_pred)[0]
         loss = dvae.recon_center_loss(ns_center_pred, center_next_states)
-        print("\nLoss: ", loss)
-        assert False
 
         optimizer.zero_grad()
         loss.backward()
@@ -704,11 +702,11 @@ if __name__ == '__main__':
     parser.add_argument('--pcl_type', type=str, default='shell_scaled', help='options: dense_centered, dense_scaled, shell_centered, shell_scaled')
     parser.add_argument('--word_dynamics', type=bool, default=False, help='dynamics model at word-level or global')                                                                                
     parser.add_argument('--center_dynamics',type=bool, default=True, help='dynamics model for the centroids' )
-    parser.add_argument('--cgcnn', type=bool, default=True, help='learn the dgcnn dynamics model')
+    parser.add_argument('--cgcnn', type=bool, default=False, help='learn the dgcnn dynamics model')
 
     # Other
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--name', type=str, default='exp22_dgcnn_center', help='folder name results are stored into')
+    parser.add_argument('--name', type=str, default='exp23_center', help='folder name results are stored into')
     args = parser.parse_args()
 
     main()
