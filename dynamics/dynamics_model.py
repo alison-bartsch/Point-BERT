@@ -3,9 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from models.dvae import *
 
-class CGCNNDynamics(nn.Module):
+class DGCNNDynamics(nn.Module):
     def __init__(self, action_dims, token_dims, decoder_dims, n_tokens):
-        super(CGCNNDynamics, self).__init__()
+        super(DGCNNDynamics, self).__init__()
         self.n_tokens = n_tokens
         self.action_dims = action_dims
         self.token_dims = token_dims

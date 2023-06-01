@@ -502,9 +502,13 @@ def train_center_dgcnn(dvae, dynamics_network, center_dynamics, optimizer, sched
         actions = actions.cuda()
 
         states_sampled, states_neighborhood, states_center, states_logits = dvae.encode(states) #.to(device)
-        pred_features = dynamics_network(states_sampled, states_center, actions)
+
+        # pred_features = dynamics_network(states_sampled, states_center, actions)
+        # ns_center_pred = center_dynamics(states_center, actions).to(device)
 
         ns_center_pred = center_dynamics(states_center, actions).to(device)
+        pred_features = dynamics_network(states_sampled, ns_center_pred, actions)
+
         ret = dvae.decode_features(pred_features, states_neighborhood, ns_center_pred, states_logits, states)
         _, neighborhood_ns, _, _ = dvae.encode(next_states)
         combo_ret = (ret[0], ret[1], ret[2], ret[3], neighborhood_ns, ret[5])
@@ -537,9 +541,15 @@ def test_center_dgcnn(dvae, dynamics_network, center_dynamics, optimizer, test_l
             actions = actions.cuda()
 
             states_sampled, states_neighborhood, states_center, states_logits = dvae.encode(states) #.to(device)
-            pred_features = dynamics_network(states_sampled, states_center, actions)
+
+            # pred_features = dynamics_network(states_sampled, states_center, actions)
+            # ns_center_pred = center_dynamics(states_center, actions).to(device)
 
             ns_center_pred = center_dynamics(states_center, actions).to(device)
+            pred_features = dynamics_network(states_sampled, ns_center_pred, actions)
+
+            # TODO: include secondary loss of just the ns_center cd
+
             ret = dvae.decode_features(pred_features, states_neighborhood, ns_center_pred, states_logits, states)
             _, neighborhood_ns, _, _ = dvae.encode(next_states)
             combo_ret = (ret[0], ret[1], ret[2], ret[3], neighborhood_ns, ret[5])
@@ -578,14 +588,14 @@ def main():
         output_dim = 8192
         dynamics_network = dynamics.NeighborhoodDynamics(input_dim, output_dim).to(device)
         parameters = list(dynamics_network.parameters())
-    elif args.center_dynamics and args.cgcnn:
+    elif args.center_dynamics and args.dgcnn:
         dim = 64*3
         input_dim = dim + args.a_dim
         center_dynamics_network = dynamics.PointNetDynamics(dim).to(device)
         token_dims = 256
         decoder_dims = 256
         n_tokens = 64
-        feature_dynamics_network = dynamics.CGCNNDynamics(args.a_dim, token_dims, decoder_dims, n_tokens).to(device)
+        feature_dynamics_network = dynamics.DGCNNDynamics(args.a_dim, token_dims, decoder_dims, n_tokens).to(device)
         parameters = list(center_dynamics_network.parameters()) + list(feature_dynamics_network.parameters())
     elif args.center_dynamics:
         dim = 64*3
@@ -593,11 +603,11 @@ def main():
         # dynamics_network = dynamics.CenterDynamics(input_dim, dim).to(device)
         dynamics_network = dynamics.PointNetDynamics(dim).to(device)
         parameters = list(dynamics_network.parameters())
-    elif args.cgcnn:
+    elif args.dgcnn:
         token_dims = 256
         decoder_dims = 256
         n_tokens = 64
-        dynamics_network = dynamics.CGCNNDynamics(args.a_dim, token_dims, decoder_dims, n_tokens).to(device)
+        dynamics_network = dynamics.DGCNNDynamics(args.a_dim, token_dims, decoder_dims, n_tokens).to(device)
         parameters = list(dynamics_network.parameters())
     else:
         z_dim = 64*256 # 8192 # 256
@@ -638,13 +648,13 @@ def main():
             # stats = train_word_dynamics(dvae, dynamics_network, optimizer, train_loader, epoch, device, args.loss_type)
             test_loss = test_center_word_dynamics(dvae, center_network, dynamics_network, optimizer, scheduler, test_loader, epoch, device, args.loss_type)
             # test_loss = test_word_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, device, args.loss_type)
-        elif args.center_dynamics and args.cgcnn:
+        elif args.center_dynamics and args.dgcnn:
             stats = train_center_dgcnn(dvae, feature_dynamics_network, center_dynamics_network, optimizer, scheduler, train_loader, epoch, device, args.loss_type)
             test_loss = test_center_dgcnn(dvae, feature_dynamics_network, center_dynamics_network, optimizer, test_loader, epoch, device, args.loss_type)
         elif args.center_dynamics:
             stats = train_center_dynamics(dvae, dynamics_network, optimizer, scheduler, train_loader, epoch, device, args.loss_type)
             test_loss = test_center_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, device, args.loss_type)
-        elif args.cgcnn:
+        elif args.dgcnn:
             stats = train_dgcnn(dvae, dynamics_network, optimizer, scheduler, train_loader, epoch, device, args.loss_type)
             test_loss = test_dgcnn(dvae, dynamics_network, optimizer, test_loader, epoch, device, args.loss_type)
         else:
@@ -667,7 +677,7 @@ def main():
                 with open(folder_name + '/best_test_loss.txt', 'w') as f:
                     f.write(str(test_loss))
                 
-                if args.center_dynamics and args.cgcnn:
+                if args.center_dynamics and args.dgcnn:
                     checkpoint = {
                         'feature_dynamics_network': feature_dynamics_network,
                         'center_dynamics_network': center_dynamics_network,
@@ -702,11 +712,11 @@ if __name__ == '__main__':
     parser.add_argument('--pcl_type', type=str, default='shell_scaled', help='options: dense_centered, dense_scaled, shell_centered, shell_scaled')
     parser.add_argument('--word_dynamics', type=bool, default=False, help='dynamics model at word-level or global')                                                                                
     parser.add_argument('--center_dynamics',type=bool, default=True, help='dynamics model for the centroids' )
-    parser.add_argument('--cgcnn', type=bool, default=False, help='learn the dgcnn dynamics model')
+    parser.add_argument('--dgcnn', type=bool, default=True, help='learn the dgcnn dynamics model')
 
     # Other
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--name', type=str, default='exp23_center', help='folder name results are stored into')
+    parser.add_argument('--name', type=str, default='exp26_center_dgcnn', help='folder name results are stored into')
     args = parser.parse_args()
 
     main()
