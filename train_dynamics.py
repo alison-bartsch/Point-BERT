@@ -675,7 +675,7 @@ def main():
                 best_test_loss = test_loss
 
                 with open(folder_name + '/best_test_loss.txt', 'w') as f:
-                    f.write(str(test_loss))
+                    f.write(str(epoch) + ':   ', + str(test_loss))
                 
                 if args.center_dynamics and args.dgcnn:
                     checkpoint = {
@@ -716,7 +716,7 @@ if __name__ == '__main__':
 
     # Other
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--name', type=str, default='exp26_center_dgcnn', help='folder name results are stored into')
+    parser.add_argument('--name', type=str, default='exp27_center_dgcnn', help='folder name results are stored into')
     args = parser.parse_args()
 
     main()
