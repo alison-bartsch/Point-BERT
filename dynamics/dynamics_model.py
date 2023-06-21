@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from models.dvae import *
+from torch_geometric.nn import GCNConv
 
 class DGCNNDynamics(nn.Module):
     def __init__(self, action_dims, token_dims, decoder_dims, n_tokens):
@@ -18,6 +19,44 @@ class DGCNNDynamics(nn.Module):
         inp = torch.concat((sampled, action), dim=2)
         feature = self.dgcnn(inp, center)
         return feature
+    
+class GNNCentroid(nn.Module):
+    def __init__(self, action_dims, input_dim):
+        super(GNNCentroid, self).__init__()
+
+        hidden_dim = 256
+        
+        self.conv1 = GCNConv(3, hidden_dim)
+        self.conv2 = GCNConv(hidden_dim, hidden_dim)
+        self.conv3 = GCNConv(hidden_dim, hidden_dim)
+        self.conv4 = GCNConv(hidden_dim + action_dims, hidden_dim)
+        self.conv5 = GCNConv(hidden_dim, hidden_dim)
+        self.conv6 = GCNConv(hidden_dim, 3)
+
+    def forward(self, graph, action):
+        x = graph.x # .cuda()
+        edge_index = graph.edge_index # .cuda()
+
+        # print("\naction: ", action.size()) # 32, 5
+        # print("x: ", x.size()) # 2048, 3
+        # print("edge_index: ", edge_index.size()) # 2, 16384
+
+        nnodes = x.size()[0]
+        first_dim = int(nnodes / 64)
+
+        x = F.relu(self.conv1(x, edge_index))
+        x = F.relu(self.conv2(x, edge_index))
+        x = F.relu(self.conv3(x, edge_index))
+
+        x = torch.reshape(x, (first_dim, 64, 256))
+        a = action.unsqueeze(1).repeat(1, 64,1)
+        x = torch.cat([x, a], dim=2)
+        x = torch.reshape(x, (nnodes,261))
+
+        x = F.relu(self.conv4(x, edge_index))
+        x = F.relu(self.conv5(x, edge_index))
+        x = F.relu(self.conv6(x, edge_index))
+        return x
         
 
 class PointNetfeatModified(nn.Module):

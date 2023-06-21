@@ -6,6 +6,9 @@ from tools import builder
 from utils.config import cfg_from_yaml_file
 from dynamics.dynamics_dataset import DemoActionDataset, DemoWordDataset
 
+from torch_geometric.data import Data, Batch
+from torch_cluster import knn_graph
+
 """
 Reconstructing encoded state
 """
@@ -130,12 +133,46 @@ Reconstructing next state with state's centers
 # assert False
 
 
+
+def create_graph(pcl_batch, device):
+    """
+    Create a batch of graphs of the centroid point clouds
+    """
+
+    batch_size, num_points, _ = pcl_batch.size()
+    reshaped_points = pcl_batch.view(batch_size * num_points, 3).to(device)
+
+    k = 8
+    edge_index = knn_graph(reshaped_points, k=k, batch=torch.arange(batch_size).repeat_interleave(num_points).to(device), loop=False)
+    edge_index = torch.tensor(edge_index, dtype=torch.long)
+    # print("\nedge index shape: ", edge_index.size())
+
+    graph_data_list = []
+    for i in range(batch_size):
+        start_idx = i * num_points
+        end_idx = (i + 1) * num_points
+
+        edge_index_i = edge_index[:, (edge_index[0] >= start_idx) & (edge_index[0] < end_idx)]
+        edge_index_i -= start_idx
+        # print("\nedge_index_i shape: ", edge_index_i.size())
+
+        data = Data(x=pcl_batch[i], edge_index=edge_index_i, edge_attr=None, num_nodes=num_points)
+        # print("\nData.x ", data.x.size())
+        # print("data edges shape: ", data.edge_index.size())
+        graph_data_list.append(data)
+
+    batch_data = Batch.from_data_list(graph_data_list)
+    return batch_data
+
+
 """
 Visualize center dynamics model only
 """
 # path = '/home/alison/Clay_Data/Fully_Processed/All_Shapes'
 # dvae_path = 'experiments/dvae/ShapeNet55_models/test_dvae/ckpt-best.pth'
 # center_dynamics_path = 'dvae_dynamics_experiments/exp16_center_pointnet'
+# # center_dynamics_path = 'dvae_dynamics_experiments/exp36_center_gnn_mse'
+# GNN = False
 
 # # load the dvae model
 # config = cfg_from_yaml_file('cfgs/Dynamics/dvae.yaml')
@@ -171,7 +208,15 @@ Visualize center dynamics model only
 
 #     z_state, neighborhood, center, logits = dvae.encode(state) 
 #     z_next_state, next_neighborhood, next_center, next_logits = dvae.encode(next_state) 
-#     ns_center_pred = dynamics_network(center, action).to(device)
+
+#     if GNN:
+#         states_graph = create_graph(center, device)
+#         pred_next_state_graph = dynamics_network(states_graph, action)
+#         bs = state.size()[0]
+#         ns_center_pred = torch.reshape(pred_next_state_graph, (bs, 64, 3))
+
+#     else:
+#         ns_center_pred = dynamics_network(center, action).to(device)
 
 #     # create gt next state center point cloud [BLUE]
 #     ns = next_center.squeeze().detach().cpu().numpy()
@@ -387,8 +432,9 @@ Visualize DGCNN dynamics model
 path = '/home/alison/Clay_Data/Fully_Processed/All_Shapes'
 dvae_path = 'experiments/dvae/ShapeNet55_models/test_dvae/ckpt-best.pth'
 # dynamics_path = 'dvae_dynamics_experiments/exp21_dgcnn' # exp3_twonetworks_mse' # exp1_twonetworks'
-# center_dynamics_path = 'dvae_dynamics_experiments/exp16_center_pointnet'
-dynamics_path = 'dvae_dynamics_experiments/exp22_dgcnn_center'
+center_dynamics_path = 'dvae_dynamics_experiments/exp16_center_pointnet'
+# dynamics_path = 'dvae_dynamics_experiments/exp26_center_dgcnn'
+dynamics_path = 'dvae_dynamics_experiments/exp39_dgcnn_pointnet'
 
 # load the dvae model
 config = cfg_from_yaml_file('cfgs/Dynamics/dvae.yaml')
@@ -401,12 +447,13 @@ dvae.eval()
 
 # load the checkpoint
 checkpoint = torch.load(dynamics_path + '/checkpoint', map_location=torch.device('cpu'))
-dynamics_network = checkpoint['feature_dynamics_network'].to(device)
-ctr_network = checkpoint['center_dynamics_network'].to(device)
+dynamics_network = checkpoint['dynamics_network'].to(device)
+# dynamics_network = checkpoint['feature_dynamics_network'].to(device)
+# ctr_network = checkpoint['center_dynamics_network'].to(device)
 
 # # load the checkpoint
-# ctr_checkpoint = torch.load(center_dynamics_path + '/checkpoint', map_location=torch.device('cpu'))
-# ctr_network = ctr_checkpoint['dynamics_network'].to(device)
+ctr_checkpoint = torch.load(center_dynamics_path + '/checkpoint', map_location=torch.device('cpu'))
+ctr_network = ctr_checkpoint['dynamics_network'].to(device)
 
 # initialize the dataset
 dataset = DemoActionDataset(path, 'shell_scaled')
