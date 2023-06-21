@@ -164,6 +164,19 @@ def create_graph(pcl_batch, device):
     batch_data = Batch.from_data_list(graph_data_list)
     return batch_data
 
+def return_nearest_neighbor(pcl_batch):
+    """
+    Given a batch of point clouds efficiently return the distance between each point
+    and its nearest neighbor in the same point cloud.
+
+    input size: (batch size, n points, 3)
+    output size: (batch size, n points)
+    """
+    dist = torch.cdist(pcl_batch, pcl_batch)
+    dist.diagonal(dim1=1, dim2=2).fill_(float('inf'))
+    nn_dists = torch.min(dist, dim=2).values
+    return nn_dists
+
 
 """
 Visualize center dynamics model only
