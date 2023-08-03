@@ -360,15 +360,7 @@ def test_center_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, 
 
         _, _, center_state, _ = dvae.encode(states) #.to(device)
         _, _, center_next_states, _ = dvae.encode(next_states)
-        # z_pred_next_states = dynamics_network(z_states, actions).to(device)
-
         ns_center_pred = dynamics_network(center_state, actions).to(device)
-
-        # try mse loss
-        # loss_func = nn.MSELoss()
-        # loss = loss_func(center_next_states, ns_center_pred)
-        # loss = chamfer_distance(center_next_states, ns_center_pred)[0]
-        # loss = dvae.recon_center_loss(ns_center_pred, center_next_states)
 
         cd_loss = chamfer_distance(center_next_states, ns_center_pred)[0]
         spc_loss = spacing_loss(ns_center_pred, 0.2, device)
@@ -606,7 +598,12 @@ def train_center_dgcnn(dvae, dynamics_network, center_dynamics, optimizer, sched
         ret = dvae.decode_features(pred_features, states_neighborhood, ns_center_pred, states_logits, states)
         _, neighborhood_ns, _, _ = dvae.encode(next_states)
         combo_ret = (ret[0], ret[1], ret[2], ret[3], neighborhood_ns, ret[5])
-        loss = dvae.recon_loss(combo_ret, next_states)
+        # loss = dvae.recon_loss(combo_ret, next_states)
+
+        # cd_loss = chamfer_distance(center_next_states, ns_center_pred)[0]
+        cd_loss = dvae.recon_loss(combo_ret, next_states)
+        spc_loss = spacing_loss(combo_ret[1], 0.01, device)
+        loss = cd_loss + spc_loss
 
         optimizer.zero_grad()
         loss.backward()
@@ -616,7 +613,7 @@ def train_center_dgcnn(dvae, dynamics_network, center_dynamics, optimizer, sched
         stats.add('train_loss', loss.item())
         avg_loss = np.mean(stats['train_loss'][-50:])
 
-        pbar.set_description(f'Epoch {epoch}, Train Loss {avg_loss:.4f}')
+        pbar.set_description(f'Epoch {epoch}, Train Loss {avg_loss:.4f}, CD {cd_loss:.4f}, SPC {spc_loss:.4f}')
         pbar.update(states.shape[0])
     pbar.close()
     scheduler.step()
@@ -647,7 +644,11 @@ def test_center_dgcnn(dvae, dynamics_network, center_dynamics, optimizer, test_l
             ret = dvae.decode_features(pred_features, states_neighborhood, ns_center_pred, states_logits, states)
             _, neighborhood_ns, _, _ = dvae.encode(next_states)
             combo_ret = (ret[0], ret[1], ret[2], ret[3], neighborhood_ns, ret[5])
-            loss = dvae.recon_loss(combo_ret, next_states)
+            # loss = dvae.recon_loss(combo_ret, next_states)
+
+            cd_loss = dvae.recon_loss(combo_ret, next_states)
+            spc_loss = spacing_loss(combo_ret[1], 0.01, device)
+            loss = cd_loss + spc_loss
 
         test_loss += loss * states.shape[0]
     test_loss /= len(test_loader.dataset)
@@ -669,17 +670,26 @@ def train_dgcnn_pointnet(dvae, dynamics_network, center_dynamics, optimizer, sch
         actions = actions.cuda()
 
         states_sampled, states_neighborhood, states_center, states_logits = dvae.encode(states) #.to(device)
-        # ns_center_pred = center_dynamics(states_center, actions).to(device)
-        ns_sampled, sns_neighborhood, ns_center_pred, ns_logits = dvae.encode(next_states) #.to(device)
+        
+        # for when using center dynamics
+        ns_center_pred = center_dynamics(states_center, actions).to(device)
         pred_features = dynamics_network(states_sampled, ns_center_pred, actions)
-
         ret = dvae.decode_features(pred_features, states_neighborhood, ns_center_pred, states_logits, states)
+        
+        # # for when using gt ns centroids
+        # ns_sampled, sns_neighborhood, ns_center_pred, ns_logits = dvae.encode(next_states) #.to(device)
+        # pred_features = dynamics_network(states_sampled, ns_center_pred, actions)
+        # ret = dvae.decode_features(pred_features, states_neighborhood, ns_center_pred, states_logits, states)
+
         _, neighborhood_ns, _, _ = dvae.encode(next_states)
         combo_ret = (ret[0], ret[1], ret[2], ret[3], neighborhood_ns, ret[5])
         # loss = dvae.recon_loss(combo_ret, next_states)
-        cd_loss = dvae.recon_loss(combo_ret, next_states)
-        spc_loss = spacing_loss(combo_ret[1], 0.02)
-        loss = cd_loss + spc_loss
+        # cd_loss = dvae.recon_loss(combo_ret, next_states)
+        # spc_loss = spacing_loss(combo_ret[1], 0.01, device)
+        # loss = cd_loss + spc_loss
+
+        
+        loss = dvae.recon_loss(combo_ret, next_states)
 
         optimizer.zero_grad()
         loss.backward()
@@ -708,16 +718,24 @@ def test_dgcnn_pointnet(dvae, dynamics_network, center_dynamics, optimizer, test
             actions = actions.cuda()
 
             states_sampled, states_neighborhood, states_center, states_logits = dvae.encode(states) #.to(device)
-            # ns_center_pred = center_dynamics(states_center, actions).to(device)
-            ns_sampled, sns_neighborhood, ns_center_pred, ns_logits = dvae.encode(next_states) #.to(device)
+            
+            # for when using center dynamics
+            ns_center_pred = center_dynamics(states_center, actions).to(device)
             pred_features = dynamics_network(states_sampled, ns_center_pred, actions)
             ret = dvae.decode_features(pred_features, states_neighborhood, ns_center_pred, states_logits, states)
+            
+            # # for when using gt ns centroids
+            # ns_sampled, sns_neighborhood, ns_center_pred, ns_logits = dvae.encode(next_states) #.to(device)
+            # pred_features = dynamics_network(states_sampled, ns_center_pred, actions)
+            # ret = dvae.decode_features(pred_features, states_neighborhood, ns_center_pred, states_logits, states)
+
             _, neighborhood_ns, _, _ = dvae.encode(next_states)
             combo_ret = (ret[0], ret[1], ret[2], ret[3], neighborhood_ns, ret[5])
-            cd_loss = dvae.recon_loss(combo_ret, next_states)
-            # cd_loss = chamfer_distance(center_next_states, ns_pred)[0]
-            spc_loss = spacing_loss(combo_ret[1], 0.02)
-            loss = cd_loss + spc_loss
+            # cd_loss = dvae.recon_loss(combo_ret, next_states)
+            # # cd_loss = chamfer_distance(center_next_states, ns_pred)[0]
+            # spc_loss = spacing_loss(combo_ret[1], 0.01, device)
+            # loss = cd_loss + spc_loss
+            loss = dvae.recon_loss(combo_ret, next_states)
 
         test_loss += loss * states.shape[0]
     test_loss /= len(test_loader.dataset)
@@ -840,10 +858,10 @@ def main():
         # dim = 64*3
         # input_dim = dim + args.a_dim
         # center_dynamics_network = dynamics.PointNetDynamics(dim).to(device)
-        # token_dims = 256
-        # decoder_dims = 256
-        # n_tokens = 64
-        center_dynamics_path = 'dvae_dynamics_experiments/exp16_center_pointnet'
+        token_dims = 256
+        decoder_dims = 256
+        n_tokens = 64
+        center_dynamics_path = 'dvae_dynamics_experiments/exp43_pointnet_centroid_spacing' # exp16_center_pointnet'
         ctr_checkpoint = torch.load(center_dynamics_path + '/checkpoint', map_location=torch.device('cpu'))
         center_dynamics_network = ctr_checkpoint['dynamics_network'].to(device)
         feature_dynamics_network = dynamics.DGCNNDynamics(args.a_dim, token_dims, decoder_dims, n_tokens).to(device)
@@ -970,7 +988,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # Learning Parameters
-    parser.add_argument('--lr', type=float, default=1e-3, help='base learning rate for batch size 128 (default: 1e-3)')
+    parser.add_argument('--lr', type=float, default=1e-4, help='base learning rate for batch size 128 (default: 1e-3)')
     parser.add_argument('--weight_decay', type=float, default=0, help='default 0')
     parser.add_argument('--epochs', type=int, default=500, help='default: 100')
     parser.add_argument('--log_interval', type=int, default=1, help='default: 1')
@@ -984,13 +1002,13 @@ if __name__ == '__main__':
     parser.add_argument('--pcl_type', type=str, default='shell_scaled', help='options: dense_centered, dense_scaled, shell_centered, shell_scaled')
     parser.add_argument('--word_dynamics', type=bool, default=False, help='dynamics model at word-level or global')                                                                                
     parser.add_argument('--center_dynamics',type=bool, default=True, help='dynamics model for the centroids' )
-    parser.add_argument('--dgcnn', type=bool, default=False, help='learn the dgcnn dynamics model')
+    parser.add_argument('--dgcnn', type=bool, default=True, help='learn the dgcnn dynamics model')
     parser.add_argument('--gnn', type=bool, default=False, help='if the centroid dynamics model is using a gnn structure')
     parser.add_argument('--pretrained_center', type=bool, default=True, help='if the centeroid dynamics were trained separatelty')
 
     # Other
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--name', type=str, default='exp43_pointnet_centroid_spacing', help='folder name results are stored into')
+    parser.add_argument('--name', type=str, default='exp47_pret_centroid_dgcnn_nospacing', help='folder name results are stored into')
     args = parser.parse_args()
 
     main()
