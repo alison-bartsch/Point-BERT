@@ -33,9 +33,8 @@ def get_dataloaders(pcl_type, dvae=None):
     """
     Insert comment
     """
-    # full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/May10_5D', pcl_type)
-
-    full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/All_Shapes', pcl_type)
+    full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/May10_5D', pcl_type)
+    # full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/All_Shapes', pcl_type)
     train_size = int(0.8 * len(full_dataset))
     test_size = len(full_dataset) - train_size
     train_dataset, test_dataset = data.random_split(full_dataset, [train_size, test_size])
@@ -296,7 +295,7 @@ def gan_loop(writer, folder_name, dvae, feature_dynamics_network, center_dynamic
     itr = 0
 
 
-    for epoch in range(args.epochs):
+    for epoch in range(2 * args.epochs):
         if epoch % 2 == 0:
             stats = train_center_dynamics(dvae, center_dynamics_network, feature_dynamics_network, optimizer, scheduler, train_loader, epoch, device)
             ctr_test_loss = test_center_dynamics(dvae, center_dynamics_network, feature_dynamics_network, optimizer, test_loader, epoch, device)
@@ -400,11 +399,19 @@ def main(training_style, exp_name):
     decoder_dims = 256
     n_tokens = 64
     feature_dynamics_network = dynamics.DGCNNDynamics(args.a_dim, token_dims, decoder_dims, n_tokens).to(device)
+
+    # for finetuning best performing model
+    # checkpoint = torch.load('august_experiments/exp5/checkpoint', map_location=torch.device('cpu'))
+    # center_dynamics_network = checkpoint['center_dynamics_network'].to(device)
+    # feature_dynamics_network = checkpoint['feature_dynamics_network'].to(device)
+
     parameters = list(center_dynamics_network.parameters()) + list(feature_dynamics_network.parameters())
    
     optimizer = optim.Adam(parameters, lr=args.lr, weight_decay=args.weight_decay)
     scheduler = MultiStepLR(optimizer,
-                    milestones=[200, 250, 300, 350, 400, 450],
+                    # milestones=[200, 250, 300, 350, 400, 450],
+                    # milestones=[200, 300],
+                    milestones=[400, 500, 600, 700, 800, 900],
                     gamma=0.5)
 
     # load the pre-trained dvae
@@ -452,6 +459,6 @@ if __name__ == '__main__':
 
 
     # training styles: 'independent', 'sequential', 'gan'
-    main('independent', 'exp1')
-    main('sequential', 'exp2')
-    main('gan', 'exp3')
+    # main('independent', 'exp1')
+    # main('sequential', 'exp2')
+    main('gan', 'exp7_random_actions')

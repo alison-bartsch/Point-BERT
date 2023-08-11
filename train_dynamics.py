@@ -360,7 +360,15 @@ def test_center_dynamics(dvae, dynamics_network, optimizer, test_loader, epoch, 
 
         _, _, center_state, _ = dvae.encode(states) #.to(device)
         _, _, center_next_states, _ = dvae.encode(next_states)
+        # z_pred_next_states = dynamics_network(z_states, actions).to(device)
+
         ns_center_pred = dynamics_network(center_state, actions).to(device)
+
+        # try mse loss
+        # loss_func = nn.MSELoss()
+        # loss = loss_func(center_next_states, ns_center_pred)
+        # loss = chamfer_distance(center_next_states, ns_center_pred)[0]
+        # loss = dvae.recon_center_loss(ns_center_pred, center_next_states)
 
         cd_loss = chamfer_distance(center_next_states, ns_center_pred)[0]
         spc_loss = spacing_loss(ns_center_pred, 0.2, device)

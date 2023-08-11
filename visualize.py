@@ -14,69 +14,69 @@ from pytorch3d.loss import chamfer_distance
 """
 Visualize point cloud state, next state and centroids state, next state
 """
-path = '/home/alison/Clay_Data/Fully_Processed/All_Shapes'
-dvae_path = 'experiments/dvae/ShapeNet55_models/test_dvae/ckpt-best.pth'
+# path = '/home/alison/Clay_Data/Fully_Processed/All_Shapes'
+# dvae_path = 'experiments/dvae/ShapeNet55_models/test_dvae/ckpt-best.pth'
 
-# load the dvae model
-config = cfg_from_yaml_file('cfgs/Dynamics/dvae.yaml')
-config=config.config
-dvae = builder.model_builder(config)
-builder.load_model(dvae, dvae_path, logger = 'dvae_testclay')
-device = torch.device('cuda')
-dvae.to(device)
-dvae.eval()
+# # load the dvae model
+# config = cfg_from_yaml_file('cfgs/Dynamics/dvae.yaml')
+# config=config.config
+# dvae = builder.model_builder(config)
+# builder.load_model(dvae, dvae_path, logger = 'dvae_testclay')
+# device = torch.device('cuda')
+# dvae.to(device)
+# dvae.eval()
 
-# initialize the dataset
-dataset = DemoActionDataset(path, 'shell_scaled')
+# # initialize the dataset
+# dataset = DemoActionDataset(path, 'shell_scaled')
 
-# iterate through a few state/next state pairs
-# test_samples = [0, 60, 120, 180, 240, 300, 360] # [0, 6, 100, 3000, 5067, 2048, 2678, 3333, 6983, 222, 468, 172]
-test_samples = [120]
-for index in test_samples:
-    state, next_state, action = dataset.__getitem__(index)
-    state = torch.unsqueeze(state, 0)
-    next_state = torch.unsqueeze(next_state, 0)
+# # iterate through a few state/next state pairs
+# # test_samples = [0, 60, 120, 180, 240, 300, 360] # [0, 6, 100, 3000, 5067, 2048, 2678, 3333, 6983, 222, 468, 172]
+# test_samples = [120]
+# for index in test_samples:
+#     state, next_state, action = dataset.__getitem__(index)
+#     state = torch.unsqueeze(state, 0)
+#     next_state = torch.unsqueeze(next_state, 0)
 
-    # # create og point cloud
-    # s = state.squeeze().detach().cpu().numpy()
-    # og_pcl = o3d.geometry.PointCloud()
-    # og_pcl.points = o3d.utility.Vector3dVector(s)
-    # og_colors = np.tile(np.array([0, 0, 1]), (len(s),1))
-    # og_pcl.colors = o3d.utility.Vector3dVector(og_colors)
-    # o3d.visualization.draw_geometries([og_pcl])
+#     # # create og point cloud
+#     # s = state.squeeze().detach().cpu().numpy()
+#     # og_pcl = o3d.geometry.PointCloud()
+#     # og_pcl.points = o3d.utility.Vector3dVector(s)
+#     # og_colors = np.tile(np.array([0, 0, 1]), (len(s),1))
+#     # og_pcl.colors = o3d.utility.Vector3dVector(og_colors)
+#     # o3d.visualization.draw_geometries([og_pcl])
 
-    # # create og ns point cloud
-    # ns = next_state.squeeze().detach().cpu().numpy()
-    # ns_pcl = o3d.geometry.PointCloud()
-    # ns_pcl.points = o3d.utility.Vector3dVector(ns)
-    # ns_colors = np.tile(np.array([0, 0, 1]), (len(ns),1))
-    # ns_pcl.colors = o3d.utility.Vector3dVector(ns_colors)
-    # o3d.visualization.draw_geometries([ns_pcl])
+#     # # create og ns point cloud
+#     # ns = next_state.squeeze().detach().cpu().numpy()
+#     # ns_pcl = o3d.geometry.PointCloud()
+#     # ns_pcl.points = o3d.utility.Vector3dVector(ns)
+#     # ns_colors = np.tile(np.array([0, 0, 1]), (len(ns),1))
+#     # ns_pcl.colors = o3d.utility.Vector3dVector(ns_colors)
+#     # o3d.visualization.draw_geometries([ns_pcl])
 
-    state = state.cuda()
-    next_state = next_state.cuda()
+#     state = state.cuda()
+#     next_state = next_state.cuda()
 
-    # reconstruct next_state point cloud with state's centers
-    z_states, state_neighborhood, state_center, state_logits = dvae.encode(state) #.to(device)
-    z_next_states, next_state_neighborhood, next_state_center, next_state_logits = dvae.encode(next_state) #.to(device)
+#     # reconstruct next_state point cloud with state's centers
+#     z_states, state_neighborhood, state_center, state_logits = dvae.encode(state) #.to(device)
+#     z_next_states, next_state_neighborhood, next_state_center, next_state_logits = dvae.encode(next_state) #.to(device)
 
-    # # create og point cloud
-    # sc = state_center.squeeze().detach().cpu().numpy()
-    # og_pclc = o3d.geometry.PointCloud()
-    # og_pclc.points = o3d.utility.Vector3dVector(sc)
-    # og_colorsc = np.tile(np.array([1, 0, 0]), (len(sc),1))
-    # og_pclc.colors = o3d.utility.Vector3dVector(og_colorsc)
-    # o3d.visualization.draw_geometries([og_pclc])
+#     # # create og point cloud
+#     # sc = state_center.squeeze().detach().cpu().numpy()
+#     # og_pclc = o3d.geometry.PointCloud()
+#     # og_pclc.points = o3d.utility.Vector3dVector(sc)
+#     # og_colorsc = np.tile(np.array([1, 0, 0]), (len(sc),1))
+#     # og_pclc.colors = o3d.utility.Vector3dVector(og_colorsc)
+#     # o3d.visualization.draw_geometries([og_pclc])
 
-    # create og ns point cloud
-    nsc = next_state_center.squeeze().detach().cpu().numpy()
-    ns_pclc = o3d.geometry.PointCloud()
-    ns_pclc.points = o3d.utility.Vector3dVector(nsc)
-    ns_colorsc = np.tile(np.array([1, 0, 0]), (len(nsc),1))
-    ns_pclc.colors = o3d.utility.Vector3dVector(ns_colorsc)
-    o3d.visualization.draw_geometries([ns_pclc])
+#     # create og ns point cloud
+#     nsc = next_state_center.squeeze().detach().cpu().numpy()
+#     ns_pclc = o3d.geometry.PointCloud()
+#     ns_pclc.points = o3d.utility.Vector3dVector(nsc)
+#     ns_colorsc = np.tile(np.array([1, 0, 0]), (len(nsc),1))
+#     ns_pclc.colors = o3d.utility.Vector3dVector(ns_colorsc)
+#     o3d.visualization.draw_geometries([ns_pclc])
 
-assert False
+# assert False
 
 
 """
@@ -253,8 +253,8 @@ Visualize center dynamics model only
 """
 path = '/home/alison/Clay_Data/Fully_Processed/All_Shapes'
 dvae_path = 'experiments/dvae/ShapeNet55_models/test_dvae/ckpt-best.pth'
-center_dynamics_path = 'dvae_dynamics_experiments/exp43_pointnet_centroid_spacing' # 'exp16_center_pointnet'
-# center_dynamics_path = 'dvae_dynamics_experiments/exp36_center_gnn_mse'
+# center_dynamics_path = 'dvae_dynamics_experiments/exp43_pointnet_centroid_spacing' # 'exp16_center_pointnet'
+center_dynamics_path = 'centroid_experiments/exp3'
 GNN = False
 
 # load the dvae model
@@ -268,13 +268,15 @@ dvae.eval()
 
 # load the checkpoint
 checkpoint = torch.load(center_dynamics_path + '/checkpoint', map_location=torch.device('cpu'))
-dynamics_network = checkpoint['dynamics_network'].to(device)
+# dynamics_network = checkpoint['dynamics_network'].to(device)
+dynamics_network = checkpoint['center_dynamics_network'].to(device)
 
 # initialize the dataset
 dataset = DemoWordDataset(path, 'shell_scaled', dvae)
 
 
-test_samples = [0, 6, 100, 3000, 5067, 2048, 2678, 3333, 6983, 222, 468, 172]
+# test_samples = [0, 6, 100, 3000, 5067, 2048, 2678, 3333, 6983, 222, 468, 172]
+test_samples = [0, 1, 6, 10, 12, 222, 223, 224, 225, 173, 177, 460, 468, 100, 200, 300, 4000, 5000, 5067, 5068, 2048, 2049, 2050]
 cds = []
 
 # samples with the largest s vs ns difference
@@ -300,15 +302,24 @@ for index in test_samples:
         ns_center_pred = torch.reshape(pred_next_state_graph, (bs, 64, 3))
 
     else:
-        ns_center_pred = dynamics_network(center, action).to(device)
+        # ns_center_pred = dynamics_network(center, action).to(device)
+
+        # # for delta centroid prediction
+        # ns_center_delta = dynamics_network(center, action).to(device)
+        # ns_center_pred = center + ns_center_delta
+
+        # for delta whole prediction
+        ns_delta = dynamics_network(state, action).to(device)
+        ns_pred = state + ns_delta
 
     # calculate chamfer distance
-    cd = chamfer_distance(next_center, ns_center_pred)[0].cpu().detach().numpy()
+    # cd = chamfer_distance(next_center, ns_center_pred)[0].cpu().detach().numpy()
+    cd = chamfer_distance(next_state, ns_pred)[0].cpu().detach().numpy()
     cds.append(cd)
     print("CD: ", cd)
 
     # create gt next state center point cloud [BLUE]
-    ns = next_center.squeeze().detach().cpu().numpy()
+    ns = next_state.squeeze().detach().cpu().numpy()
     og_pcl = o3d.geometry.PointCloud()
     og_pcl.points = o3d.utility.Vector3dVector(ns)
     og_colors = np.tile(np.array([0, 0, 1]), (len(ns),1))
@@ -323,13 +334,37 @@ for index in test_samples:
     # s_pcl.colors = o3d.utility.Vector3dVector(s_colors)
 
     # create next state predicted point cloud [RED]
-    pred = ns_center_pred.squeeze().detach().cpu().numpy()
+    pred = ns_pred.squeeze().detach().cpu().numpy()
     pred_pcl = o3d.geometry.PointCloud()
     pred_pcl.points = o3d.utility.Vector3dVector(pred)
     pred_colors = np.tile(np.array([1, 0, 0]), (len(pred),1))
     pred_pcl.colors = o3d.utility.Vector3dVector(pred_colors)
     # o3d.visualization.draw_geometries([pred_pcl, s_pcl, og_pcl])
     o3d.visualization.draw_geometries([og_pcl, pred_pcl])
+
+    # # create gt next state center point cloud [BLUE]
+    # ns = next_center.squeeze().detach().cpu().numpy()
+    # og_pcl = o3d.geometry.PointCloud()
+    # og_pcl.points = o3d.utility.Vector3dVector(ns)
+    # og_colors = np.tile(np.array([0, 0, 1]), (len(ns),1))
+    # og_pcl.colors = o3d.utility.Vector3dVector(og_colors)
+    # # o3d.visualization.draw_geometries([og_pcl])
+
+    # # # create gt state point cloud [GREEN]
+    # # s = center.squeeze().detach().cpu().numpy()
+    # # s_pcl = o3d.geometry.PointCloud()
+    # # s_pcl.points = o3d.utility.Vector3dVector(s)
+    # # s_colors = np.tile(np.array([0, 1, 0]), (len(s),1))
+    # # s_pcl.colors = o3d.utility.Vector3dVector(s_colors)
+
+    # # create next state predicted point cloud [RED]
+    # pred = ns_center_pred.squeeze().detach().cpu().numpy()
+    # pred_pcl = o3d.geometry.PointCloud()
+    # pred_pcl.points = o3d.utility.Vector3dVector(pred)
+    # pred_colors = np.tile(np.array([1, 0, 0]), (len(pred),1))
+    # pred_pcl.colors = o3d.utility.Vector3dVector(pred_colors)
+    # # o3d.visualization.draw_geometries([pred_pcl, s_pcl, og_pcl])
+    # o3d.visualization.draw_geometries([og_pcl, pred_pcl])
 print("\nAvg CD: ", np.mean(cds))
 assert False
 
