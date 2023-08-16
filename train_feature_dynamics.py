@@ -34,7 +34,8 @@ def get_dataloaders(pcl_type, dvae=None):
     Insert comment
     """
     # full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/May10_5D', pcl_type)
-    full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/All_Shapes', pcl_type)
+    # full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/All_Shapes', pcl_type)
+    full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/Aug15_5D_Human_Demos', pcl_type)
     train_size = int(0.8 * len(full_dataset))
     test_size = len(full_dataset) - train_size
     train_dataset, test_dataset = data.random_split(full_dataset, [train_size, test_size])
@@ -89,10 +90,22 @@ def train_feature_dynamics(dvae, feature_dynamics_network, optimizer, scheduler,
         _, _, ns_center, _ = dvae.encode(next_states) #.to(device)
         pred_features = feature_dynamics_network(states_sampled, ns_center, actions)
 
+        # # for cross entropy loss ---> model is predicting logits
+        # ns_one_hot = dvae.get_one_hot(next_states)
+        # loss = F.cross_entropy(pred_features, ns_one_hot)
+
+        # for chamfer distance loss
         ret = dvae.decode_features(pred_features, states_neighborhood, ns_center, states_logits, states)
         _, neighborhood_ns, _, _ = dvae.encode(next_states)
         combo_ret = (ret[0], ret[1], ret[2], ret[3], neighborhood_ns, ret[5])
         loss = dvae.recon_loss(combo_ret, next_states)
+
+        # # for chamfer distance loss
+        # pred_feat_256 = dvae.sample_codebook(pred_features)
+        # ret = dvae.decode_features(pred_feat_256, states_neighborhood, ns_center, states_logits, states)
+        # _, neighborhood_ns, _, _ = dvae.encode(next_states)
+        # combo_ret = (ret[0], ret[1], ret[2], ret[3], neighborhood_ns, ret[5])
+        # loss = dvae.recon_loss(combo_ret, next_states)
 
         optimizer.zero_grad()
         loss.backward()
@@ -124,10 +137,22 @@ def test_feature_dynamics(dvae, feature_dynamics_network, optimizer, test_loader
             _, _, ns_center, _ = dvae.encode(next_states) #.to(device)
             pred_features = feature_dynamics_network(states_sampled, ns_center, actions)
 
+            # # for cross entropy loss ---> model is predicting logits
+            # ns_one_hot = dvae.get_one_hot(next_states)
+            # loss = F.cross_entropy(pred_features, ns_one_hot)
+
+            # for chamfer distance loss
             ret = dvae.decode_features(pred_features, states_neighborhood, ns_center, states_logits, states)
             _, neighborhood_ns, _, _ = dvae.encode(next_states)
             combo_ret = (ret[0], ret[1], ret[2], ret[3], neighborhood_ns, ret[5])
             loss = dvae.recon_loss(combo_ret, next_states)
+
+            # # for chamfer distance loss
+            # pred_feat_256 = dvae.sample_codebook(pred_features)
+            # ret = dvae.decode_features(pred_feat_256, states_neighborhood, ns_center, states_logits, states)
+            # _, neighborhood_ns, _, _ = dvae.encode(next_states)
+            # combo_ret = (ret[0], ret[1], ret[2], ret[3], neighborhood_ns, ret[5])
+            # loss = dvae.recon_loss(combo_ret, next_states)
 
         test_loss += loss * states.shape[0]
     test_loss /= len(test_loader.dataset)
@@ -158,8 +183,8 @@ def main(exp_name, delta=False):
     device = torch.device('cuda')
 
     # load the dynamics models
-    token_dims = 256
-    decoder_dims = 256
+    token_dims = 256 # always 256 because that's the input
+    decoder_dims = 256 # 8192 # sometimes 8192, sometimes 256 depending on if predicting logits or the actual features
     n_tokens = 64
     feature_dynamics_network = dynamics.DGCNNDynamics(args.a_dim, token_dims, decoder_dims, n_tokens).to(device)
 
@@ -168,7 +193,9 @@ def main(exp_name, delta=False):
     optimizer = optim.Adam(parameters, lr=args.lr, weight_decay=args.weight_decay)
     scheduler = MultiStepLR(optimizer,
                     # milestones=[200, 250, 300, 350, 400, 450],
-                    milestones=[15, 50, 100, 400],
+                    # milestones=[15, 50, 100, 400],
+                    # milestones=[400],
+                    milestones=[15, 100, 200],
                     # milestones=[200, 300],
                     # milestones=[400, 500, 600, 700, 800, 900],
                     gamma=0.5)
@@ -241,4 +268,4 @@ if __name__ == '__main__':
     # training styles: 'independent', 'sequential', 'gan'
     # main('independent', 'exp1')
     # main('sequential', 'exp2')
-    main('exp2', delta=True)
+    main('exp10_human_demos', delta=True)

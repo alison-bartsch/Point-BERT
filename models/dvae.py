@@ -366,6 +366,13 @@ class DiscreteVAE(nn.Module):
         loss_klv = F.kl_div(log_qy, log_uniform.expand(log_qy.size(0), log_qy.size(1)), None, None, 'batchmean', log_target = True)
 
         return loss_recon, loss_klv
+    
+
+    def sample_codebook(self, logits, temperature = 1., hard = False):
+        soft_one_hot = F.gumbel_softmax(logits, tau = temperature, dim = 2, hard = hard)
+        sampled = torch.einsum('b g n, n c -> b g c', soft_one_hot, self.codebook)
+        # sampled shape B G C
+        return sampled
 
 
     def forward(self, inp, temperature = 1., hard = False, **kwargs):
@@ -413,13 +420,27 @@ class DiscreteVAE(nn.Module):
     def get_center(self, inp):
         neighborhood, center = self.group_divider(inp)
         return neighborhood, center
+    
+    def get_one_hot(self, inp, temperature = 1., hard = False):
+        neighborhood, center = self.group_divider(inp)
+        logits = self.encoder(neighborhood)   #  B G C
+        logits = self.dgcnn_1(logits, center) #  B G N
+        # print("\nLogits shape: ", logits.size())
+        # print("Sum row of logits: ", logits.sum(dim=1))
+        soft_one_hot = F.gumbel_softmax(logits, tau = temperature, dim = 2, hard = hard) # B G N
+        return soft_one_hot
 
     def encode(self, inp, temperature = 1., hard = True, **kwargs):
         neighborhood, center = self.group_divider(inp)
         logits = self.encoder(neighborhood)   #  B G C
         logits = self.dgcnn_1(logits, center) #  B G N
+        # print("\nLogits shape: ", logits.size())
+        # print("Sum row of logits: ", logits.sum(dim=1))
         soft_one_hot = F.gumbel_softmax(logits, tau = temperature, dim = 2, hard = hard) # B G N
+        # print("One hot shape: ", soft_one_hot.size())
+        # print("one hot: ", soft_one_hot)
         sampled = torch.einsum('b g n, n c -> b g c', soft_one_hot, self.codebook) # B G C
+        # print("Sampled shape: ", sampled.size())
         return sampled, neighborhood, center, logits
     
     def next_state_encode(self, inp, center, neighborhood, recompute_neighborhood=True, temperature = 1., hard = True):

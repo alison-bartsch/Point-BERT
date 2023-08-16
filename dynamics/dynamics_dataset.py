@@ -36,14 +36,14 @@ class DemoActionDataset(data.Dataset):
         action = self.actions[index]
         state = np.expand_dims(np.load(self.root + '/States/' + self.pcl_type + '_state' + str(index) + '.npy'), axis=0)
         
-        # for the human demos
-        if index % 60 == 0:
-            next_state = np.expand_dims(np.load(self.root + '/Next_States/' + self.pcl_type + '_next_state' + str(index) + '.npy'), axis=0)
-        else:
-            next_state = np.expand_dims(np.load(self.root + '/Next_States/' + self.pcl_type + '_state' + str(index) + '.npy'), axis=0)
+        # # for the human demos
+        # if index % 60 == 0:
+        #     next_state = np.expand_dims(np.load(self.root + '/Next_States/' + self.pcl_type + '_next_state' + str(index) + '.npy'), axis=0)
+        # else:
+        #     next_state = np.expand_dims(np.load(self.root + '/Next_States/' + self.pcl_type + '_state' + str(index) + '.npy'), axis=0)
 
         # # for the random actions
-        # next_state = np.expand_dims(np.load(self.root + '/Next_States/' + self.pcl_type + '_next_state' + str(index) + '.npy'), axis=0)
+        next_state = np.expand_dims(np.load(self.root + '/Next_States/' + self.pcl_type + '_next_state' + str(index) + '.npy'), axis=0)
 
         state = state.squeeze()
         state = self.random_sample(state, self.sample_points_num)

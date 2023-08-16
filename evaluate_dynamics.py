@@ -29,7 +29,8 @@ from pytorch3d.loss import chamfer_distance
 exp_name = None
 
 # load all necessary models
-path = '/home/alison/Clay_Data/Fully_Processed/All_Shapes'
+# path = '/home/alison/Clay_Data/Fully_Processed/All_Shapes'
+path = '/home/alison/Clay_Data/Fully_Processed/May4_5D'
 dvae_path = 'experiments/dvae/ShapeNet55_models/test_dvae/ckpt-best.pth'
 device = torch.device('cuda')
 

@@ -34,7 +34,8 @@ def get_dataloaders(pcl_type, dvae=None):
     Insert comment
     """
     # full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/May10_5D', pcl_type)
-    full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/All_Shapes', pcl_type)
+    # full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/All_Shapes', pcl_type)
+    full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/Aug15_5D_Human_Demos', pcl_type)
     train_size = int(0.8 * len(full_dataset))
     test_size = len(full_dataset) - train_size
     train_dataset, test_dataset = data.random_split(full_dataset, [train_size, test_size])
@@ -99,9 +100,12 @@ def train_center_dynamics(dvae, center_dynamics_network, optimizer, scheduler, t
             # ns_center_pred = center_state + ns_delta
             # loss = chamfer_distance(center_next_states, ns_center_pred)[0]
 
-            ns_delta = center_dynamics_network(states, actions).to(device)
-            ns_pred = states + ns_delta
-            loss = chamfer_distance(next_states, ns_pred)[0]
+            # ns_delta = center_dynamics_network(states, actions).to(device)
+            # ns_pred = states + ns_delta
+            # loss = chamfer_distance(next_states, ns_pred)[0]
+            ns_center_delta = center_dynamics_network(center_state, actions).to(device)
+            ns_center_pred = center_state + ns_center_delta
+            loss = chamfer_distance(center_next_states, ns_center_pred)[0]
 
         else:
             ns_center_pred = center_dynamics_network(center_state, actions).to(device)
@@ -148,9 +152,12 @@ def test_center_dynamics(dvae, center_dynamics_network, optimizer, test_loader, 
             # ns_center_pred = center_state + ns_delta
             # loss = chamfer_distance(center_next_states, ns_center_pred)[0]
 
-            ns_delta = center_dynamics_network(states, actions).to(device)
-            ns_pred = states + ns_delta
-            loss = chamfer_distance(next_states, ns_pred)[0]
+            # ns_delta = center_dynamics_network(states, actions).to(device)
+            # ns_pred = states + ns_delta
+            # loss = chamfer_distance(next_states, ns_pred)[0]
+            ns_center_delta = center_dynamics_network(center_state, actions).to(device)
+            ns_center_pred = center_state + ns_center_delta
+            loss = chamfer_distance(center_next_states, ns_center_pred)[0]
 
         else:
             ns_center_pred = center_dynamics_network(center_state, actions).to(device)
@@ -188,8 +195,8 @@ def main(exp_name, delta=False):
     device = torch.device('cuda')
 
     # load the dynamics models
-    # dim = 64*3
-    dim = 1048*3
+    dim = 64*3
+    # dim = 1048*3
     input_dim = dim + args.a_dim
     center_dynamics_network = dynamics.PointNetDynamics(dim).to(device) # (input_dim).to(device)
 
@@ -270,4 +277,4 @@ if __name__ == '__main__':
     # training styles: 'independent', 'sequential', 'gan'
     # main('independent', 'exp1')
     # main('sequential', 'exp2')
-    main('exp3', delta=True)
+    main('exp4_human_demos', delta=True)

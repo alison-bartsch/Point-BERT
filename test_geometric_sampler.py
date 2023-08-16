@@ -141,13 +141,10 @@ pcl.colors = o3d.utility.Vector3dVector(pcl_colors)
 state_tree = KDTree(target_centers)
 dists, idxs = state_tree.query(state_centers)
 distances = dists.reshape(-1,1)
-print("distances shape: ", distances.shape)
+
 closest_pairs = np.column_stack((state_centers, target_centers[idxs]))
 closest_pairs = np.concatenate((closest_pairs, distances), axis=1)
-print("closest pairs shape: ", closest_pairs.shape)
 sorted_pairs = closest_pairs[(-distances).argsort()]
-print("sorted pairs shape: ", sorted_pairs.shape)
-# assert False
 
 # print("closest pairs: ", closest_pairs)
 # print("\nClosest pairs shape: ", closest_pairs.shape)
@@ -184,6 +181,8 @@ for i in range(len(sorted_pairs)):
     pair_colors = np.tile(np.array([0, 0, 1]), (len(pair),1))
     point_pair.colors = o3d.utility.Vector3dVector(pair_colors)
     o3d.visualization.draw_geometries([pcl, og_pcl, point_pair])
+
+
 
 # ------- alternate planner -------
 # do a clustering of the cloud (farthest point + knn) similar to what's done with dvae
