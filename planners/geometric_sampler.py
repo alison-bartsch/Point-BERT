@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import open3d as o3d
+from scipy.spatial import KDTree
 from scipy.spatial.distance import cdist
 import planner_utils as u
 from pointnet2_ops import pointnet2_utils
@@ -80,6 +81,21 @@ class GeometricSampler():
         dist = dist.reshape(-1)
         return dist
     
+    # def __get_unique_matching_points(self, current, target):
+    #     '''
+    #     This function is used to get the corresponding points in target point cloud for each point in current point cloud
+    #     '''
+    #     tree = KDTree(target)
+    #     matches = []
+    #     dists = []
+
+    #     used_indices = set()
+
+    #     for point in current:
+    #         dist, idx = tree.query(point)
+    #         if dist 
+    #     return idx, dist
+    
     def __fps(self, data, number):
         '''
             data B N 3
@@ -124,6 +140,7 @@ class GeometricSampler():
         point_a,point_b = np.random.choice(np.arange(idx.shape[0]),2,p=dist/np.sum(dist))
         pos_a = current[point_a,:]
         pos_b = current[point_b,:]
+
         vector = pos_a - pos_b
         distance = np.sqrt(np.sum(vector**2))
         rotation = self.__get_rotation_from_vector(vector)
@@ -162,9 +179,52 @@ class GeometricSampler():
     
     def centroid_plan(self, current, target):
         '''
+        Implementation of region-based geometric sampling strategy.
         '''
-        self.__get_centroids(current)
-        assert False
+        # get the centroids of the point clouds
+        current_centers = self.__get_centroids(current)
+        target_centers = self.__get_centroids(target)
+
+        # get the associated neighbor of each of the centers in the other cloud
+        # want match point pairs to return a list of point pairs i.e. [(ctr1, ctr2), (ctr3, ctr4), ...)]
+        idx, dist = self.__match_point_pairs(current_centers, target_centers)
+        # print("\nMatching idxs: ", idx.shape)
+        # print("Dist shape: ", dist.shape)
+        # TODO: explore doing an exclusive match (i.e. each point can only be matched to one other point)
+        
+        # get the distances and set the sampling probability propertional to the distance (i.e. larger distance = more likely)
+        sample_prob = dist/np.sum(dist)
+        # print("\nSample Prob: ", sample_prob)
+        
+        # sample a pair of centers
+        sample_idx = np.random.choice(np.arange(idx.shape[0]),1,p=dist/np.sum(dist))
+        
+        # get the vector towards the target centroid
+        dir_vector = target_centers[idx[sample_idx], :][0] - current_centers[sample_idx, :][0]
+        dir_vector /= np.linalg.norm(dir_vector)
+        print("Dir Vector: ", dir_vector)
+        
+        # set action center to the target center
+        action_pos = target_centers[idx[sample_idx], :][0] / 10.0 # rescale
+        # print("Action: ", action_pos)
+        
+        # the action rotation should be aligned with the direction vector
+        yaw = np.degrees(np.arctan2(dir_vector[1], dir_vector[0]))
+        pitch = np.degrees(np.arcsin(-dir_vector[2]))
+        roll = np.degrees(np.arctan2(-dir_vector[1], -dir_vector[2]))
+        rotation = np.array([roll, pitch, yaw])
+        print("Rotation: ", rotation)
+        
+        # the distance to grasp is the distance between the two centroids
+        distance = dist[sample_idx][0] / 10.0 # rescale
+        print("Distance: ", distance)
+
+        # TODO: scale the position and rotation back to the original scale (i.e. divide by 10 and add the center of the clay)
+        
+        # return action        
+        action = np.array([action_pos[0], action_pos[1], action_pos[2], rotation[0], rotation[1], rotation[2], distance])
+        print("Action: ", action)
+        return action, current_centers[sample_idx, :][0]
     
 if __name__ == '__main__':
     args = None
@@ -180,8 +240,41 @@ if __name__ == '__main__':
     points_1 = np.load(path + '/States/shell_scaled_state2010.npy')
     points_2 = np.load(path + '/Next_States/shell_scaled_next_state2015.npy')
 
+    for i in range(10):
+        action, starting_point = planner.centroid_plan(points_1, points_2)
 
-    planner.centroid_plan(points_1, points_2)
+        # plot the two point clouds in different colors
+        pc1 = o3d.geometry.PointCloud()
+        pc1.points = o3d.utility.Vector3dVector(points_1)
+        pc1_colors = np.tile(np.array([0, 0, 1]), (len(points_1),1))
+        pc1.colors = o3d.utility.Vector3dVector(pc1_colors)
+
+        pc2 = o3d.geometry.PointCloud()
+        pc2.points = o3d.utility.Vector3dVector(points_2)
+        pc2_colors = np.tile(np.array([1, 0, 0]), (len(points_2),1))
+        pc2.colors = o3d.utility.Vector3dVector(pc2_colors)
+
+        # plot the gripper starting and end point
+        pts = np.array([starting_point, action[:3]])
+        pts = pts.reshape(-1,3)
+        print("Points: ", pts.shape)
+        pc3 = o3d.geometry.PointCloud()
+        pc3.points = o3d.utility.Vector3dVector(pts)
+        pc3_colors = np.tile(np.array([0, 1, 0]), (len(pts),1))
+        pc3.colors = o3d.utility.Vector3dVector(pc3_colors)
+
+        # create mesh arrow
+        arrow = o3d.geometry.TriangleMesh.create_arrow(cylinder_radius=0.005, cone_radius=0.01, cylinder_height=0.07, cone_height=0.02)
+        arrow.paint_uniform_color([0, 0, 0])
+        rot_mat = np.eye(4)
+        rot_mat[:3, :3] = o3d.geometry.TriangleMesh.get_rotation_matrix_from_xyz(np.array([action[3], action[4], action[5]]))
+        arrow.transform(rot_mat)
+
+        # create coordinate frame at center of point cloud
+        frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.1, origin=[0, 0, 0])
+        o3d.visualization.draw_geometries([pc1, pc2, pc3, frame, arrow])
+
+    assert False
 
     # # heavily downsampel the point cloud
     # downsample_scale = 4

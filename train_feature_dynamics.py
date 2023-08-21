@@ -82,7 +82,7 @@ def train_feature_dynamics(dvae, feature_dynamics_network, optimizer, scheduler,
     for states, next_states, actions in train_loader:
 
         states = states.cuda()
-        next_states = states.cuda()
+        next_states = next_states.cuda()
         actions = actions.cuda()
 
         states_sampled, states_neighborhood, states_center, states_logits = dvae.encode(states) #.to(device)
@@ -129,7 +129,7 @@ def test_feature_dynamics(dvae, feature_dynamics_network, optimizer, test_loader
     for states, next_states, actions in test_loader:
         with torch.no_grad():
             states = states.cuda()
-            next_states = states.cuda()
+            next_states = next_states.cuda()
             actions = actions.cuda()
 
             states_sampled, states_neighborhood, states_center, states_logits = dvae.encode(states) #.to(device)
@@ -194,8 +194,8 @@ def main(exp_name, delta=False):
     scheduler = MultiStepLR(optimizer,
                     # milestones=[200, 250, 300, 350, 400, 450],
                     # milestones=[15, 50, 100, 400],
-                    # milestones=[400],
-                    milestones=[15, 100, 200],
+                    milestones=[400],
+                    # milestones=[15, 100, 200],
                     # milestones=[200, 300],
                     # milestones=[400, 500, 600, 700, 800, 900],
                     gamma=0.5)
@@ -248,7 +248,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # Learning Parameters
-    parser.add_argument('--lr', type=float, default=1e-2, help='base learning rate for batch size 128 (default: 1e-3)')
+    parser.add_argument('--lr', type=float, default=1e-3, help='base learning rate for batch size 128 (default: 1e-3)')
     parser.add_argument('--weight_decay', type=float, default=0, help='default 0')
     parser.add_argument('--epochs', type=int, default=500, help='default: 100') # 500
     parser.add_argument('--log_interval', type=int, default=1, help='default: 1')
@@ -268,4 +268,4 @@ if __name__ == '__main__':
     # training styles: 'independent', 'sequential', 'gan'
     # main('independent', 'exp1')
     # main('sequential', 'exp2')
-    main('exp10_human_demos', delta=True)
+    main('exp11_human_demos', delta=True)
