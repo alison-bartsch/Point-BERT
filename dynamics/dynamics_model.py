@@ -84,35 +84,7 @@ class PointNetfeatModified(nn.Module):
             x = x.view(-1, 512, 1).repeat(1, 1, n_pts)
             return torch.cat([x, pointfeat], 1)
         
-# original model
-class PointNetDynamics(nn.Module):
-    def __init__(self, output_dim):
-        super(PointNetDynamics, self).__init__()
-        self.output_dim = output_dim
-
-        self.feat = PointNetfeatModified(global_feat=True)
-        self.fc1 = nn.Linear(512 + 5, 512)
-        self.fc2 = nn.Linear(512, 256)
-        self.fc3 = nn.Linear(256, self.output_dim)
-        self.dropout = nn.Dropout(p=0.3)
-        self.bn1 = nn.BatchNorm1d(512)
-        self.bn2 = nn.BatchNorm1d(256)
-        # self.relu = nn.ReLU()
-
-    def forward(self, centers, action):
-        size = centers.size()
-        centers = torch.reshape(centers, (size[0], size[2], size[1]))
-        x = self.feat(centers)
-        x = torch.cat((x, action), dim=-1)
-        x = F.relu(self.bn1(self.fc1(x)))
-        x = F.relu(self.bn2(self.dropout(self.fc2(x))))
-        x = self.fc3(x)
-        # print(x.size())
-        # assert False
-        x = torch.reshape(x, (x.size()[0], 64, 3))
-        # x = torch.reshape(x, (x.size()[0], 1048, 3))
-        return x
-
+# # original model
 # class PointNetDynamics(nn.Module):
 #     def __init__(self, output_dim):
 #         super(PointNetDynamics, self).__init__()
@@ -120,13 +92,11 @@ class PointNetDynamics(nn.Module):
 
 #         self.feat = PointNetfeatModified(global_feat=True)
 #         self.fc1 = nn.Linear(512 + 5, 512)
-#         self.fc2 = nn.Linear(512, 512)
-#         self.fc3 = nn.Linear(512, 256)
-#         self.fc4 = nn.Linear(256, self.output_dim)
+#         self.fc2 = nn.Linear(512, 256)
+#         self.fc3 = nn.Linear(256, self.output_dim)
 #         self.dropout = nn.Dropout(p=0.3)
 #         self.bn1 = nn.BatchNorm1d(512)
-#         self.bn2 = nn.BatchNorm1d(512)
-#         self.bn3 = nn.BatchNorm1d(256)
+#         self.bn2 = nn.BatchNorm1d(256)
 #         # self.relu = nn.ReLU()
 
 #     def forward(self, centers, action):
@@ -136,11 +106,110 @@ class PointNetDynamics(nn.Module):
 #         x = torch.cat((x, action), dim=-1)
 #         x = F.relu(self.bn1(self.fc1(x)))
 #         x = F.relu(self.bn2(self.dropout(self.fc2(x))))
-#         x = F.relu(self.bn3(self.dropout(self.fc3(x))))
-#         x = self.fc4(x)
-#         # x = torch.reshape(x, (x.size()[0], 64, 3))
-#         x = torch.reshape(x, (x.size()[0], 1048, 3))
+#         x = self.fc3(x)
+#         # print(x.size())
+#         # assert False
+#         x = torch.reshape(x, (x.size()[0], 64, 3))
+#         # x = torch.reshape(x, (x.size()[0], 1048, 3))
 #         return x
+
+class CentroidDynamics(nn.Module):
+    def __init__(self, output_dim):
+        super(CentroidDynamics, self).__init__()
+        self.output_dim = output_dim
+
+        # encoder
+        # latent forward
+        # decoder
+
+        # encoder
+        self.z_dim = 256
+        self.feat = PointNetfeatModified(global_feat=True)
+        self.fc1 = nn.Linear(512, 512) # NOTE: may be 64 to start (or something else)
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, self.z_dim)
+        self.dropout = nn.Dropout(p=0.3)
+        self.bn1 = nn.BatchNorm1d(512)
+        self.bn2 = nn.BatchNorm1d(256)
+
+        # latent forward
+        self.action_dim = 5
+        self.hidden_size = 256
+        self.model = nn.Sequential(
+            nn.Linear(self.z_dim + self.action_dim, self.hidden_size),
+            nn.ReLU(),
+            nn.Dropout(0.25),
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
+            nn.Dropout(0.25),
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
+            nn.Dropout(0.25),
+            nn.Linear(self.hidden_size, self.z_dim)
+            )
+
+        # decoder
+        self.n_pts = 64
+        self.fc1 = nn.Linear(self.z_dim, 256)
+        self.fc2 = nn.Linear(256, 256)
+        # self.fc3 = nn.Linear(1024, 1024)
+        # self.fc4 = nn.Linear(1024, 2048)
+        self.fc3 = nn.Linear(256, self.n_pts*3)
+
+
+    def forward(self, centers, action):
+        # reshape input
+        size = centers.size()
+        centers = torch.reshape(centers, (size[0], size[2], size[1]))
+
+        # encode
+        x = self.feat(centers)
+        x = F.relu(self.bn1(self.fc1(x)))
+        x = F.relu(self.bn2(self.dropout(self.fc2(x))))
+        x = self.fc3(x)
+
+        # latent forward
+        x = torch.cat((x, action), dim=-1)
+        x = self.model(x)
+
+        # decode
+        batchsize = x.size()[0]
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        # x = F.relu(self.fc3(x))
+        # x = F.relu(self.fc4(x))
+        x = self.fc3(x)
+        x = torch.reshape(x, (batchsize, self.n_pts, 3))
+        return x
+
+class PointNetDynamics(nn.Module):
+    def __init__(self, output_dim):
+        super(PointNetDynamics, self).__init__()
+        self.output_dim = output_dim
+
+        self.feat = PointNetfeatModified(global_feat=True)
+        self.fc1 = nn.Linear(512 + 5, 512)
+        self.fc2 = nn.Linear(512, 512)
+        self.fc3 = nn.Linear(512, 256)
+        self.fc4 = nn.Linear(256, self.output_dim)
+        self.dropout = nn.Dropout(p=0.3)
+        self.bn1 = nn.BatchNorm1d(512)
+        self.bn2 = nn.BatchNorm1d(512)
+        self.bn3 = nn.BatchNorm1d(256)
+        # self.relu = nn.ReLU()
+
+    def forward(self, centers, action):
+        size = centers.size()
+        centers = torch.reshape(centers, (size[0], size[2], size[1]))
+        x = self.feat(centers)
+        x = torch.cat((x, action), dim=-1)
+        x = F.relu(self.bn1(self.fc1(x)))
+        x = F.relu(self.bn2(self.dropout(self.fc2(x))))
+        x = F.relu(self.bn3(self.dropout(self.fc3(x))))
+        x = self.fc4(x)
+        x = torch.reshape(x, (x.size()[0], 64, 3))
+        # x = torch.reshape(x, (x.size()[0], 1048, 3))
+        return x
 
 
 class CenterDynamics(nn.Module):

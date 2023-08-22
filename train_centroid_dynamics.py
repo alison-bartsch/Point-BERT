@@ -139,7 +139,7 @@ def test_center_dynamics(dvae, center_dynamics_network, optimizer, test_loader, 
     for states, next_states, actions in test_loader:
 
         states = states.cuda()
-        next_states = states.cuda()
+        next_states = next_states.cuda()
         actions = actions.cuda()
 
         _, _, center_state, _ = dvae.encode(states) #.to(device)
@@ -210,13 +210,17 @@ def main(exp_name, delta=False):
     dim = 64*3
     # dim = 1048*3
     input_dim = dim + args.a_dim
-    center_dynamics_network = dynamics.PointNetDynamics(dim).to(device) # (input_dim).to(device)
+    if args.model_type == 'encoder':
+        center_dynamics_network = dynamics.CentroidDynamics(dim).to(device)
+    else:
+        center_dynamics_network = dynamics.PointNetDynamics(dim).to(device) # (input_dim).to(device)
 
     parameters = list(center_dynamics_network.parameters())
    
     optimizer = optim.Adam(parameters, lr=args.lr, weight_decay=args.weight_decay)
     scheduler = MultiStepLR(optimizer,
-                            milestones=[400],
+                            # milestones=[50, 100, 150, 200, 400],
+                            milestones=[25, 50, 75, 100, 125, 150, 200],
                     # milestones=[200, 250, 300, 350, 400, 450],
                     # milestones=[200, 300],
                     # milestones=[400, 500, 600, 700, 800, 900],
@@ -280,7 +284,8 @@ if __name__ == '__main__':
     parser.add_argument('--a_dim', type=int, default=5, help='dimension of the action')
     parser.add_argument('--n_pts', type=int, default=2048, help='number of points in point cloud') 
     parser.add_argument('--pcl_type', type=str, default='shell_scaled', help='options: dense_centered, dense_scaled, shell_centered, shell_scaled')
- 
+    parser.add_argument('--model_type', type=str, default='encoder', help='options are encoder and standard')
+
     # Other
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--name', type=str, default='exp1', help='folder name results are stored into')
@@ -290,4 +295,4 @@ if __name__ == '__main__':
     # training styles: 'independent', 'sequential', 'gan'
     # main('independent', 'exp1')
     # main('sequential', 'exp2')
-    main('exp9_human_residual', delta=True)
+    main('exp17_human_encoder', delta=False)

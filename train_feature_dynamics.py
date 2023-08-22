@@ -268,4 +268,4 @@ if __name__ == '__main__':
     # training styles: 'independent', 'sequential', 'gan'
     # main('independent', 'exp1')
     # main('sequential', 'exp2')
-    main('exp11_human_demos', delta=True)
+    main('exp12_corrected_human_demos', delta=True)
