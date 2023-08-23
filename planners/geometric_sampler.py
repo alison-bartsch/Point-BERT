@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import open3d as o3d
+from sklearn.cluster import KMeans
 from scipy.spatial import KDTree
 from scipy.spatial.distance import cdist
 import planner_utils as u
@@ -226,6 +227,52 @@ class GeometricSampler():
         print("Action: ", action)
         return action, current_centers[sample_idx, :][0]
     
+def divide_point_cloud(point_cloud, num_regions):
+    kmeans = KMeans(n_clusters=num_regions, random_state=0)
+    labels = kmeans.fit_predict(point_cloud)
+    return labels
+
+def region_distance(region1, region2, distances):
+    distances_subset = distances[np.ix_(region1, region2)]
+    return np.max(distances_subset)
+
+def most_different_regions(pc1, pc2, num_regions):
+    dist1_to_2 = cdist(pc1, pc2, metric='euclidean')
+    labels1 = divide_point_cloud(pc1, num_regions)
+    labels2 = divide_point_cloud(pc2, num_regions)
+
+    most_different = []
+    for idx1 in range(num_regions):
+        for idx2 in range(num_regions):
+            region1_idx = np.where(labels1 == idx1)[0]
+            region2_idx = np.where(labels2 == idx2)[0]
+
+            distance = region_distance(region1_idx, region2_idx, dist1_to_2)
+            most_different.append((idx1, idx2, distance))
+    
+    # order from smallest to largest distance
+    most_different.sort(key=lambda x: x[2], reverse=False)
+    
+    pcl1_clusters = []
+
+    cluster_pairs = []
+    for region in most_different:
+        pt1 = region[0]
+        pt2 = region[1]
+        dist = region[2]
+        
+        if pt1 not in pcl1_clusters:
+            pcl1_clusters.append(pt1)
+            cluster_pairs.append((pt1, pt2, dist))
+    
+    cluster_pairs.sort(key=lambda x: x[2], reverse=True)
+    print("Cluster Pairs: ", cluster_pairs)
+    # most_different.sort(key=lambda x: x[2], reverse=True)
+
+    # print("Most different: ", most_different)
+    # print(len(most_different))
+    return cluster_pairs, labels1, labels2
+    
 if __name__ == '__main__':
     args = None
     planner = GeometricSampler(args)
@@ -237,8 +284,53 @@ if __name__ == '__main__':
     # points_1 = np.random.normal(size=(2048,3))
 
     path = '/home/alison/Clay_Data/Fully_Processed/May4_5D'
-    points_1 = np.load(path + '/States/shell_scaled_state2010.npy')
-    points_2 = np.load(path + '/Next_States/shell_scaled_next_state2015.npy')
+    points_1 = np.load(path + '/States/shell_scaled_state2030.npy')
+    points_2 = np.load(path + '/Next_States/shell_scaled_next_state2035.npy')
+
+    # plot the two point clouds in different colors
+    pc1 = o3d.geometry.PointCloud()
+    pc1.points = o3d.utility.Vector3dVector(points_1)
+    pc1_colors = np.tile(np.array([0, 0, 1]), (len(points_1),1))
+    pc1.colors = o3d.utility.Vector3dVector(pc1_colors)
+
+    pc2 = o3d.geometry.PointCloud()
+    pc2.points = o3d.utility.Vector3dVector(points_2)
+    pc2_colors = np.tile(np.array([1, 0, 0]), (len(points_2),1))
+    pc2.colors = o3d.utility.Vector3dVector(pc2_colors)
+
+    cluster_pairs, labels1, labels2 = most_different_regions(points_1, points_2, 45) # original: 64
+    print(len(cluster_pairs))
+
+    for i in range(10):
+        region_pair = cluster_pairs[i]
+        point1 = region_pair[0]
+        point2 = region_pair[1]
+        dist = region_pair[2]
+
+        # print("Point1: ", point1)
+        # print("Point2: ", point2)
+        # print("Dist: ", dist)
+
+        region1_idx = np.where(point1 == labels1)[0]
+        region1 = points_1[region1_idx, :]
+        
+        region2_idx = np.where(point2 == labels2)[0]
+        region2 = points_2[region2_idx, :]
+
+        # convert to green points and visualize
+        reg1 = o3d.geometry.PointCloud()
+        reg1.points = o3d.utility.Vector3dVector(region1)
+        reg1_colors = np.tile(np.array([0, 1, 0]), (len(region1),1))
+        reg1.colors = o3d.utility.Vector3dVector(reg1_colors)
+
+        reg2 = o3d.geometry.PointCloud()
+        reg2.points = o3d.utility.Vector3dVector(region2)
+        reg2_colors = np.tile(np.array([0, 1, 1]), (len(region2),1))
+        reg2.colors = o3d.utility.Vector3dVector(reg2_colors)
+        o3d.visualization.draw_geometries([pc1, pc2, reg1, reg2])
+
+        
+    assert False
 
     for i in range(10):
         action, starting_point = planner.centroid_plan(points_1, points_2)

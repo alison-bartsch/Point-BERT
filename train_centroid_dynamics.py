@@ -211,6 +211,7 @@ def main(exp_name, delta=False):
     # dim = 1048*3
     input_dim = dim + args.a_dim
     if args.model_type == 'encoder':
+        print("Using encoder model")
         center_dynamics_network = dynamics.CentroidDynamics(dim).to(device)
     else:
         center_dynamics_network = dynamics.PointNetDynamics(dim).to(device) # (input_dim).to(device)
@@ -274,9 +275,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # Learning Parameters
-    parser.add_argument('--lr', type=float, default=1e-3, help='base learning rate for batch size 128 (default: 1e-3)')
+    parser.add_argument('--lr', type=float, default=1e-4, help='base learning rate for batch size 128 (default: 1e-3)')
     parser.add_argument('--weight_decay', type=float, default=0, help='default 0')
-    parser.add_argument('--epochs', type=int, default=500, help='default: 100') # 500
+    parser.add_argument('--epochs', type=int, default=250, help='default: 100') # 500
     parser.add_argument('--log_interval', type=int, default=1, help='default: 1')
     parser.add_argument('--batch_size', type=int, default=16, help='default 32') # 32
 
@@ -295,4 +296,4 @@ if __name__ == '__main__':
     # training styles: 'independent', 'sequential', 'gan'
     # main('independent', 'exp1')
     # main('sequential', 'exp2')
-    main('exp17_human_encoder', delta=False)
+    main('exp19_human_encoder_smaller', delta=False)

@@ -119,10 +119,6 @@ class CentroidDynamics(nn.Module):
         self.output_dim = output_dim
 
         # encoder
-        # latent forward
-        # decoder
-
-        # encoder
         self.z_dim = 256
         self.feat = PointNetfeatModified(global_feat=True)
         self.fc1 = nn.Linear(512, 512) # NOTE: may be 64 to start (or something else)
@@ -150,11 +146,12 @@ class CentroidDynamics(nn.Module):
 
         # decoder
         self.n_pts = 64
-        self.fc1 = nn.Linear(self.z_dim, 256)
-        self.fc2 = nn.Linear(256, 256)
-        # self.fc3 = nn.Linear(1024, 1024)
-        # self.fc4 = nn.Linear(1024, 2048)
-        self.fc3 = nn.Linear(256, self.n_pts*3)
+
+        # NOTE: may remove fc4 and 5 if the model is too big/clunky
+        self.fc4 = nn.Linear(self.z_dim, 256)
+        self.fc5 = nn.Linear(256, 256)
+        self.fc6 = nn.Linear(256, 256)
+        self.fc7 = nn.Linear(256, self.n_pts*3)
 
 
     def forward(self, centers, action):
@@ -174,11 +171,10 @@ class CentroidDynamics(nn.Module):
 
         # decode
         batchsize = x.size()[0]
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        # x = F.relu(self.fc3(x))
-        # x = F.relu(self.fc4(x))
-        x = self.fc3(x)
+        x = F.relu(self.fc4(x))
+        x = F.relu(self.fc5(x))
+        x = F.relu(self.fc6(x))
+        x = self.fc7(x)
         x = torch.reshape(x, (batchsize, self.n_pts, 3))
         return x
 
