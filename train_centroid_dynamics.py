@@ -35,7 +35,7 @@ def get_dataloaders(pcl_type, dvae=None):
     """
     # full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/May10_5D', pcl_type)
     # full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/All_Shapes', pcl_type)
-    full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/Aug15_5D_Human_Demos', pcl_type)
+    full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/Aug24_Human_Demos_Fully_Processed', pcl_type)
     train_size = int(0.8 * len(full_dataset))
     test_size = len(full_dataset) - train_size
     train_dataset, test_dataset = data.random_split(full_dataset, [train_size, test_size])
@@ -117,6 +117,9 @@ def train_center_dynamics(dvae, center_dynamics_network, optimizer, scheduler, t
             ns_center_pred = center_dynamics_network(center_state, actions).to(device)
             loss = chamfer_distance(center_next_states, ns_center_pred)[0]
 
+            # loss_func = nn.MSELoss()
+            # loss = loss_func(center_next_states, ns_center_pred)
+
         optimizer.zero_grad()
         loss.backward()
         nn.utils.clip_grad_norm_(parameters, 20)
@@ -174,6 +177,10 @@ def test_center_dynamics(dvae, center_dynamics_network, optimizer, test_loader, 
         else:
             ns_center_pred = center_dynamics_network(center_state, actions).to(device)
             loss = chamfer_distance(center_next_states, ns_center_pred)[0]
+
+            # loss_func = nn.MSELoss()
+            # loss = loss_func(center_next_states, ns_center_pred)
+
         # ns_center_pred = center_dynamics_network(center_state, actions).to(device)
         # loss = chamfer_distance(center_next_states, ns_center_pred)[0]
 
@@ -213,6 +220,9 @@ def main(exp_name, delta=False):
     if args.model_type == 'encoder':
         print("Using encoder model")
         center_dynamics_network = dynamics.CentroidDynamics(dim).to(device)
+    elif args.model_type == 'pointnet_action':
+        print("Using action encoder + pointnet model")
+        center_dynamics_network = dynamics.PointNetActionDynamics(dim).to(device)
     else:
         center_dynamics_network = dynamics.PointNetDynamics(dim).to(device) # (input_dim).to(device)
 
@@ -275,9 +285,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # Learning Parameters
-    parser.add_argument('--lr', type=float, default=1e-4, help='base learning rate for batch size 128 (default: 1e-3)')
+    parser.add_argument('--lr', type=float, default=1e-3, help='base learning rate for batch size 128 (default: 1e-3)')
     parser.add_argument('--weight_decay', type=float, default=0, help='default 0')
-    parser.add_argument('--epochs', type=int, default=250, help='default: 100') # 500
+    parser.add_argument('--epochs', type=int, default=150, help='default: 100') # 500
     parser.add_argument('--log_interval', type=int, default=1, help='default: 1')
     parser.add_argument('--batch_size', type=int, default=16, help='default 32') # 32
 
@@ -285,7 +295,7 @@ if __name__ == '__main__':
     parser.add_argument('--a_dim', type=int, default=5, help='dimension of the action')
     parser.add_argument('--n_pts', type=int, default=2048, help='number of points in point cloud') 
     parser.add_argument('--pcl_type', type=str, default='shell_scaled', help='options: dense_centered, dense_scaled, shell_centered, shell_scaled')
-    parser.add_argument('--model_type', type=str, default='encoder', help='options are encoder and standard')
+    parser.add_argument('--model_type', type=str, default='pointnet_action', help='options are encoder and standard')
 
     # Other
     parser.add_argument('--seed', type=int, default=0)
@@ -296,4 +306,4 @@ if __name__ == '__main__':
     # training styles: 'independent', 'sequential', 'gan'
     # main('independent', 'exp1')
     # main('sequential', 'exp2')
-    main('exp19_human_encoder_smaller', delta=False)
+    main('exp23_new_dataset', delta=False)

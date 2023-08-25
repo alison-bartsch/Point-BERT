@@ -1,0 +1,1 @@
+{"delta": false}{"lr": 0.001, "weight_decay": 0, "epochs": 150, "log_interval": 1, "batch_size": 16, "a_dim": 5, "n_pts": 2048, "pcl_type": "shell_scaled", "model_type": "standard", "seed": 0, "name": "exp1", "script": "train_dynamics"}
