@@ -35,7 +35,8 @@ def get_dataloaders(pcl_type, dvae=None):
     """
     # full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/May10_5D', pcl_type)
     # full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/All_Shapes', pcl_type)
-    full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/Aug15_5D_Human_Demos', pcl_type)
+    # full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/Aug15_5D_Human_Demos', pcl_type)
+    full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/Aug24_Human_Demos_Fully_Processed', pcl_type)
     train_size = int(0.8 * len(full_dataset))
     test_size = len(full_dataset) - train_size
     train_dataset, test_dataset = data.random_split(full_dataset, [train_size, test_size])
@@ -192,12 +193,8 @@ def main(exp_name, delta=False):
    
     optimizer = optim.Adam(parameters, lr=args.lr, weight_decay=args.weight_decay)
     scheduler = MultiStepLR(optimizer,
-                    # milestones=[200, 250, 300, 350, 400, 450],
-                    # milestones=[15, 50, 100, 400],
                     milestones=[400],
-                    # milestones=[15, 100, 200],
-                    # milestones=[200, 300],
-                    # milestones=[400, 500, 600, 700, 800, 900],
+                    # milestones=[25, 100, 200],
                     gamma=0.5)
 
     # load the pre-trained dvae
@@ -248,7 +245,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # Learning Parameters
-    parser.add_argument('--lr', type=float, default=1e-3, help='base learning rate for batch size 128 (default: 1e-3)')
+    parser.add_argument('--lr', type=float, default=1e-5, help='base learning rate for batch size 128 (default: 1e-3)')
     parser.add_argument('--weight_decay', type=float, default=0, help='default 0')
     parser.add_argument('--epochs', type=int, default=500, help='default: 100') # 500
     parser.add_argument('--log_interval', type=int, default=1, help='default: 1')
@@ -268,4 +265,8 @@ if __name__ == '__main__':
     # training styles: 'independent', 'sequential', 'gan'
     # main('independent', 'exp1')
     # main('sequential', 'exp2')
-    main('exp12_corrected_human_demos', delta=True)
+    main('exp14_new_dataset', delta=True)
+
+    # TODO:
+        # centroid w/ 1e-4, 1e-5 and 1e-6 learning rate
+        # feature w/ 1e-5, 1e-6 and 1e-7 learning rate

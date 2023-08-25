@@ -62,7 +62,8 @@ def line_3d_start_end(center, rz, length):
     # return associated lines indicating which points we want lines drawn  between i.e. [[0,1], [0,2], ...]
 
 # path
-path = '/home/alison/Clay_Data/Fully_Processed/Aug15_5D_Human_Demos'
+# path = '/home/alison/Clay_Data/Fully_Processed/Aug15_5D_Human_Demos'
+path = '/home/alison/Clay_Data/Fully_Processed/Aug24_Human_Demos_Fully_Processed'
 # initialize the dataset
 dataset = DemoActionDataset(path, 'shell_scaled')
 # import an action and a state
@@ -82,7 +83,8 @@ for index in test_samples:
     action = unnormalize_a(action)
     print("Unnormalized action: ", action)
     # center the action at the origin of the point cloud
-    pcl_center = np.array([0.59, 0.0, 0.22])
+    # pcl_center = np.array([0.59, 0.0, 0.22])
+    pcl_center = np.array([0.6, 0.0, 0.24])
     action[0:3] = action[0:3] - pcl_center
     print("action centered: ", action)
     # scale the action (multiply x,y,z,d by 10)
@@ -98,8 +100,9 @@ for index in test_samples:
         
 
     ctr = action_scaled[0:3]
-    rz = 90 + action_scaled[3] # NOTE: This is in degrees
+    # rz = 90 + action_scaled[3] # NOTE: This is in degrees
     # rz = action_scaled[3] - 90
+    rz = 75 + action_scaled[3] # TODO: add the original rotation instead of 90 (it's slightly off)
     points, lines = line_3d_start_end(ctr, rz, len)
     line_set = o3d.geometry.LineSet()
     line_set.points = o3d.utility.Vector3dVector(points)
