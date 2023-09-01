@@ -9,6 +9,106 @@ from sklearn.neighbors import KDTree
 from scipy.spatial.distance import cdist
 from pointnet2_ops import pointnet2_utils
 
+def normalize_a(action):
+    if action.shape[0] == 2:
+        a_mins2d = np.array([-90, 0.005])
+        a_maxs2d = np.array([90, 0.05])
+        norm_action = (action - a_mins2d) / (a_maxs2d - a_mins2d)
+
+    elif action.shape[0] == 5:
+        a_mins5d = np.array([0.55, -0.035, 0.19, -90, 0.005])
+        a_maxs5d = np.array([0.63, 0.035, 0.25, 90, 0.05])
+        norm_action = (action - a_mins5d) / (a_maxs5d - a_mins5d)
+    
+    elif action.shape[0] == 7:
+        a_mins = np.array([0.55, -0.035, 0.19, -50, -50, -90, 0.005])
+        a_maxs = np.array([0.63, 0.035, 0.25, 50, 50, 90, 0.05])
+        norm_action = (action - a_mins) / (a_maxs - a_mins)
+    
+    else:
+        print("\nERROR: action dimension incorrect\n")
+        assert False
+    
+    return norm_action
+
+def unnormalize_a(norm_action):
+    if norm_action.shape[0] == 2:
+        a_mins2d = np.array([-90, 0.005])
+        a_maxs2d = np.array([90, 0.05])
+        action = norm_action * (a_maxs2d - a_mins2d) + a_mins2d
+
+    elif norm_action.shape[0] == 5:
+        a_mins5d = np.array([0.55, -0.035, 0.19, -90, 0.005])
+        a_maxs5d = np.array([0.63, 0.035, 0.25, 90, 0.05])
+        action = norm_action * (a_maxs5d - a_mins5d) + a_mins5d
+    
+    elif norm_action.shape[0] == 7:
+        a_mins = np.array([0.55, -0.035, 0.19, -50, -50, -90, 0.005])
+        a_maxs = np.array([0.63, 0.035, 0.25, 50, 50, 90, 0.05])
+        action = norm_action * (a_maxs - a_mins) + a_mins
+    
+    else:
+        print("\nERROR: action dimension incorrect\n")
+        assert False
+    
+    return action
+
+def line_3d_start_end(center, rz, length):
+    """
+    Given the center point, rotation and length of the line, generate one in o3d format for plotting
+    """
+    # convert rz to radians
+    rz = np.radians(rz)
+    dir_vec = np.array([np.cos(rz), np.sin(rz), 0])
+    displacement = dir_vec * (0.5*length)
+    start_point = center - displacement
+    end_point = center + displacement
+    points = np.array([start_point, end_point])
+    # print("points: ", points)
+    lines = np.array([[0,1]])
+    return points, lines
+
+def line_3d_point_set(points):
+    """
+    Given a list of list of points, convert to a list of points and create fully connected lines.
+    """
+    # print("points: ", points)
+    new_points = []
+    for elem in points:
+        # print("\nelem: ", elem)
+        for i in range(2):
+            # print("\narr: ", elem[i])
+            new_points.append(elem[i])
+    # print("New Points: ", new_points)
+
+    lines = np.array([[0,1], [0,2], [0,3], [0,4], [0,5], [0,6], [0,7],
+                      [1,2], [1,3], [1,4], [1,5] , [1,6], [1,7],
+                      [2,3], [2,4], [2,5], [2,6], [2,7],
+                      [3,4], [3,5], [3,6], [3,7],
+                      [4,5], [4,6], [4,7],
+                      [5,6], [5,7],
+                      [6,7]])
+    return new_points, lines
+
+def points_inside_rectangle(rectangle_points, push_dir, pcl):
+    """
+    Given a 3D rectangular shape and a point cloud, return the points inside the rectangle, and the
+    distance to move (in the direction of the push) to be outside of the rectangle.
+    """
+    min_corner = np.min(rectangle_points, axis=0)
+    max_corner = np.max(rectangle_points, axis=0)
+    inside_mask = np.all((min_corner <= pcl) & (pcl <= max_corner), axis=1)
+    inside_indices = np.where(inside_mask)[0]
+    return inside_indices
+
+def dir_vec_from_points(pt1, pt2):
+    """
+    Given two 3D points, find the direction vector from pt1 to pt2 and return
+    the unit vector.
+    """
+    dir_vec = pt2 - pt1
+    dir_vec = dir_vec / np.linalg.norm(dir_vec)
+    return dir_vec
 
 def fps(data, number):
     '''
@@ -50,7 +150,7 @@ def square_distance(src, dst):
     """
     B, N, _ = src.shape
     _, M, _ = dst.shape
-    src = src.double()
+    # src = src.double()
     dist = -2 * torch.matmul(src, dst.permute(0, 2, 1))
     dist += torch.sum(src ** 2, -1).view(B, N, 1)
     dist += torch.sum(dst ** 2, -1).view(B, 1, M)
@@ -160,7 +260,7 @@ def force_directed_layout(graph, displacements, iterations=100, k=0.1, spring_le
                 displacement += spring_length ** 2 / k * diff
             
             new_pos[node] = positions[node] + displacements[node]
-    return pos
+    return new_pos
 
 def propagate_displacement(graph, node_to_move, displacement, max_edge_length, min_edge_length, max_iterations=100):
     """
@@ -269,71 +369,3 @@ def propagate_displacements(graph, list_of_nodes, displacements, max_edge_length
         if all(length <= max_edge_length for _, _, length in edge_lengths):
             break
     return updated_graph
-        
-
-                
-
-
-# 3d graph
-state = np.expand_dims(np.load('/home/alison/Clay_Data/Fully_Processed/Aug29_Human_Demos/States/shell_scaled_state1000.npy'), axis=0)
-state = torch.from_numpy(state).cuda()
-# get state centroid
-group_func = Group(num_group = 64, group_size = 32)
-_, centroids = group_func(state)
-centroids = centroids.squeeze().cpu().detach().numpy()
-
-# distances = cdist(centroids, centroids, metric='euclidean')
-# np.fill_diagonal(distances, np.nan)
-# print("\nAvg Dist: ", np.nanmean(distances))
-# print("Max Dist: ", np.nanmax(distances))
-# print("Min Dist: ", np.nanmin(distances))
-# assert False
-
-# arr = np.array([[0,0,0], [1,1,1], [2,2,2], [3,3,3], [4,4,4], [5,5,5], [6,6,6], [1,2,3],[2,3,4],[3,4,5],[4,5,6],[5,6,7],[6,7,8]])
-# G = nx.cycle_graph(20)
-G = create_graph_from_point_cloud(centroids, k=5)
-
-ctroid = create_point_cloud_from_graph(G)
-pcl = o3d.geometry.PointCloud()
-pcl.points = o3d.utility.Vector3dVector(ctroid)
-pcl_colors = np.tile(np.array([1, 0, 0]), (ctroid.shape[0],1))
-pcl.colors = o3d.utility.Vector3dVector(pcl_colors)
-# o3d.visualization.draw_geometries([pcl])
-
-# new_graph = propagate_displacement(G, 1, np.array([0.2, 0.5, 0.0]), 0.5, 0.08)
-new_graph = propagate_displacements(G, [0,1,10], np.array([[2, 0.5, 0.0], [0.5, 5, 0.05], [0.15, 0.2, 4]]), 6, 0.8)
-
-ns_ctroid = create_point_cloud_from_graph(new_graph)
-ns_pcl = o3d.geometry.PointCloud()
-ns_pcl.points = o3d.utility.Vector3dVector(ns_ctroid)
-ns_pcl_colors = np.tile(np.array([0, 0, 1]), (ns_ctroid.shape[0],1))
-ns_pcl.colors = o3d.utility.Vector3dVector(ns_pcl_colors)
-o3d.visualization.draw_geometries([pcl, ns_pcl])
-
-# 3d spring layout
-pos = nx.spring_layout(G, dim=3, seed=789)
-# extract node and edge positions from the layout
-node_xyz = np.array([pos[v] for v in sorted(G)])
-edge_xyz = np.array([(pos[u], pos[v]) for u, v in G.edges()])
-
-# create 3d plot
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-
-# plot the nodes
-ax.scatter(*node_xyz.T, s=100, marker='s', color='r')
-
-# plot the edges
-for vizedge in edge_xyz:
-    ax.plot(*vizedge.T, linewidth=3, color='b')
-
-# format axes
-ax.grid(False)
-for dim in (ax.xaxis, ax.yaxis, ax.zaxis):
-    dim.set_ticks([])
-ax.set_xlabel('X')
-ax.set_ylabel('Y')
-ax.set_zlabel('Z')
-
-fig.tight_layout()
-plt.show()

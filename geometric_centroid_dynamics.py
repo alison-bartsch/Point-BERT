@@ -93,13 +93,33 @@ def points_inside_rectangle(rectangle_points, push_dir, pcl):
 
     # TODO: THIS FUNCTION NOT WORKING CORRECTLY RIGHT NOW
 
-    print("\nRectangle Points: ", rectangle_points)
-    print("Min: ", np.min(rectangle_points, axis=0))
+    # print("\nRectangle Points: ", rectangle_points)
+    # print("Min: ", np.min(rectangle_points, axis=0))
+
+    # assert False
+
+    # minx, miny, minz = np.min(rectangle_points, axis=0)
+    # maxx, maxy, maxz = np.max(rectangle_points, axis=0)
+
+    # print("minx: ", minx)
+    # print("miny: ", miny)
+    # print("minz: ", minz)
+    # print("maxx: ", maxx)
+    # print("maxy: ", maxy)
+    # print("maxz: ", maxz)
+
+    # inside_indices = np.where((pcl[:,0] > minx) & (pcl[:,0] < maxx) & (pcl[:,1] > miny) & (pcl[:,1] < maxy) & (pcl[:,2] > minz) & (pcl[:,2] < maxz))[0]
+
+    # print("og pcl: ", pcl.shape)
+    # print("inside: ", pcl[inside_indices,:].shape)
+    # return inside_indices
 
     # assert False
 
     min_corner = np.min(rectangle_points, axis=0)
     max_corner = np.max(rectangle_points, axis=0)
+    # print("Min corner: ", min_corner)
+    # print("Max corner: ", max_corner)
 
     inside_mask = np.all((min_corner <= pcl) & (pcl <= max_corner), axis=1)
     inside_indices = np.where(inside_mask)[0]
@@ -130,13 +150,9 @@ for index in test_samples:
 
     state = state.detach().numpy()
     action = action.detach().numpy()
-    # print("\n\nNormalized Action: ", action)
-    print("\nMax State: ", np.amax(state, axis=0))
-    print("Min state: ", np.amin(state, axis=0))
 
     # unnormalize the action
     action = unnormalize_a(action)
-    print("Unnormalized action: ", action)
 
     # center the action at the origin of the point cloud
     # pcl_center = np.array([0.6, 0.0, 0.24]) # verified same pcl center that processed point clouds
@@ -175,9 +191,8 @@ for index in test_samples:
 
     # get the end points for the grasp
     # delta = 2*0.5*(0.8 - action_scaled[4]) # NOTE: seems to be 2x scaled, but shouldn't be!
-    print("Action Scaled: ", action_scaled)
+
     delta = 0.8 - action_scaled[4] 
-    print("Delta: ", delta)
     end_pts, _ = line_3d_start_end(ctr, rz, len - delta)
     top_end_pts, _ = line_3d_start_end(upper_ctr, rz, len - delta)
 
@@ -210,12 +225,7 @@ for index in test_samples:
     g1_diffs = np.tile(end_pts[0], (inlier_pts[g1_idx,:].shape[0],1)) - inlier_pts[g1_idx,:] 
     g1_diffs = np.linalg.norm(g1_diffs, axis=1)
     # inlier_pts[g1_idx,:] = inlier_pts[g1_idx,:] + np.tile(g1_displacement_vec, (inlier_pts[g1_idx,:].shape[0],1))
-    
     inlier_pts[g1_idx,:] = inlier_pts[g1_idx,:] -  np.tile(g1_diffs, (3,1)).T * np.tile(g1_dir_unit, (inlier_pts[g1_idx,:].shape[0],1))
-    # g1_inliers = o3d.geometry.PointCloud()
-    # g1_inliers.points = o3d.utility.Vector3dVector(g1_inlier_pts)
-    # g1_inlier_colors = np.tile(np.array([1, 0, 0]), (g1_inlier_pts.shape[0],1))
-    # g1_inliers.colors = o3d.utility.Vector3dVector(g1_inlier_colors)
 
     g1 = o3d.geometry.LineSet()
     g1.points = o3d.utility.Vector3dVector(g1_points)
