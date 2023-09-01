@@ -135,12 +135,12 @@ class CentroidDynamics(nn.Module):
             nn.Linear(self.z_dim + self.action_dim, self.hidden_size),
             nn.ReLU(),
             nn.Dropout(0.25),
-            # nn.Linear(self.hidden_size, self.hidden_size),
-            # nn.ReLU(),
-            # nn.Dropout(0.25),
-            # nn.Linear(self.hidden_size, self.hidden_size),
-            # nn.ReLU(),
-            # nn.Dropout(0.25),
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
+            nn.Dropout(0.25),
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
+            nn.Dropout(0.25),
             nn.Linear(self.hidden_size, self.z_dim)
             )
 
@@ -148,8 +148,8 @@ class CentroidDynamics(nn.Module):
         self.n_pts = 64
 
         # NOTE: may remove fc4 and 5 if the model is too big/clunky
-        # self.fc4 = nn.Linear(self.z_dim, 256)
-        # self.fc5 = nn.Linear(256, 256)
+        self.fc4 = nn.Linear(self.z_dim, 256)
+        self.fc5 = nn.Linear(256, 256)
         # self.fc3 = nn.Linear(1024, 1024)
         # self.fc4 = nn.Linear(1024, 2048)
         self.fc6 = nn.Linear(256, self.n_pts*3)
@@ -172,8 +172,8 @@ class CentroidDynamics(nn.Module):
 
         # decode
         batchsize = x.size()[0]
-        # x = F.relu(self.fc4(x))
-        # x = F.relu(self.fc5(x))
+        x = F.relu(self.fc4(x))
+        x = F.relu(self.fc5(x))
         # x = F.relu(self.fc3(x))
         # x = F.relu(self.fc4(x))
         x = self.fc6(x)

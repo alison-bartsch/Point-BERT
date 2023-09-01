@@ -193,8 +193,8 @@ def main(exp_name, delta=False):
    
     optimizer = optim.Adam(parameters, lr=args.lr, weight_decay=args.weight_decay)
     scheduler = MultiStepLR(optimizer,
-                    milestones=[400],
-                    # milestones=[25, 100, 200],
+                    # milestones=[400],
+                    milestones=[40, 75, 100, 200],
                     gamma=0.5)
 
     # load the pre-trained dvae
@@ -245,7 +245,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # Learning Parameters
-    parser.add_argument('--lr', type=float, default=1e-5, help='base learning rate for batch size 128 (default: 1e-3)')
+    parser.add_argument('--lr', type=float, default=1e-6, help='base learning rate for batch size 128 (default: 1e-3)')
     parser.add_argument('--weight_decay', type=float, default=0, help='default 0')
     parser.add_argument('--epochs', type=int, default=500, help='default: 100') # 500
     parser.add_argument('--log_interval', type=int, default=1, help='default: 1')
@@ -265,7 +265,7 @@ if __name__ == '__main__':
     # training styles: 'independent', 'sequential', 'gan'
     # main('independent', 'exp1')
     # main('sequential', 'exp2')
-    main('exp14_new_dataset', delta=True)
+    main('exp16_new_dataset', delta=True)
 
     # TODO:
         # centroid w/ 1e-4, 1e-5 and 1e-6 learning rate

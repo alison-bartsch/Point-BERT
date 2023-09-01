@@ -35,7 +35,10 @@ def get_dataloaders(pcl_type, dvae=None):
     """
     # full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/May10_5D', pcl_type)
     # full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/All_Shapes', pcl_type)
-    full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/Aug24_Human_Demos_Fully_Processed', pcl_type)
+    # full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/Aug24_Human_Demos_Fully_Processed', pcl_type)
+    
+    full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/Tiny_Dataset', pcl_type)
+    
     train_size = int(0.8 * len(full_dataset))
     test_size = len(full_dataset) - train_size
     train_dataset, test_dataset = data.random_split(full_dataset, [train_size, test_size])
@@ -231,7 +234,8 @@ def main(exp_name, delta=False):
     optimizer = optim.Adam(parameters, lr=args.lr, weight_decay=args.weight_decay)
     scheduler = MultiStepLR(optimizer,
                             # milestones=[50, 100, 150, 200, 400],
-                            milestones=[25, 50, 75, 100, 125, 150, 200],
+                            # milestones=[10, 25, 40, 50, 75, 100, 125, 150, 200, 250, 300],
+                            milestones=[75, 150, 200],
                     # milestones=[200, 250, 300, 350, 400, 450],
                     # milestones=[200, 300],
                     # milestones=[400, 500, 600, 700, 800, 900],
@@ -285,9 +289,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # Learning Parameters
-    parser.add_argument('--lr', type=float, default=1e-3, help='base learning rate for batch size 128 (default: 1e-3)')
+    parser.add_argument('--lr', type=float, default=1e-4, help='base learning rate for batch size 128 (default: 1e-3)')
     parser.add_argument('--weight_decay', type=float, default=0, help='default 0')
-    parser.add_argument('--epochs', type=int, default=150, help='default: 100') # 500
+    parser.add_argument('--epochs', type=int, default=400, help='default: 100') # 500
     parser.add_argument('--log_interval', type=int, default=1, help='default: 1')
     parser.add_argument('--batch_size', type=int, default=16, help='default 32') # 32
 
@@ -295,7 +299,7 @@ if __name__ == '__main__':
     parser.add_argument('--a_dim', type=int, default=5, help='dimension of the action')
     parser.add_argument('--n_pts', type=int, default=2048, help='number of points in point cloud') 
     parser.add_argument('--pcl_type', type=str, default='shell_scaled', help='options: dense_centered, dense_scaled, shell_centered, shell_scaled')
-    parser.add_argument('--model_type', type=str, default='pointnet_action', help='options are encoder and standard')
+    parser.add_argument('--model_type', type=str, default='pointnet_encoder', help='options are encoder and standard')
 
     # Other
     parser.add_argument('--seed', type=int, default=0)
@@ -306,4 +310,4 @@ if __name__ == '__main__':
     # training styles: 'independent', 'sequential', 'gan'
     # main('independent', 'exp1')
     # main('sequential', 'exp2')
-    main('exp23_new_dataset', delta=False)
+    main('exp32_tiny_dataset', delta=True)
