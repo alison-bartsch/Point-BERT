@@ -7,22 +7,21 @@ import argparse
 import numpy as np
 import pyrealsense2 as rs
 from tqdm import tqdm
-from robot_utils import *
+from planners.robot_utils import *
+from planners.plan_geometric_utils import * 
 from os.path import join
 from pytorch3d.loss import chamfer_distance
-from geometric_sampler import GeometricSampler
+from planners.geometric_sampler import GeometricSampler
 
 class MPC():
-    def __init__(self, device, dvae, center_dynamics_network, feature_dynamics_network, planning_horizon, n_actions, action_dim, use_geometric=False):
+    def __init__(self, device, dvae, feature_dynamics_network, planning_horizon, n_actions, action_dim, sampler='random'):
         self.device = device
         self.dvae = dvae
-        self.center_dynamics_network = center_dynamics_network
         self.feature_dynamics_network = feature_dynamics_network
-        # if use_geometric:
-        #     self.geometric_sampler = GeometricSampler()
         self.planning_horizon = planning_horizon
         self.n_actions = n_actions
         self.action_dim = action_dim
+        self.sampler = sampler
 
     def normalize_pcl(self, pcl):
         """
@@ -31,6 +30,7 @@ class MPC():
         pcl = pcl - centroid
         m = np.max(np.sqrt(np.sum(pcl**2, axis=1)))
         pcl = pcl / m
+        return pcl
 
     def dynamics_model(self, state, action):
 
@@ -39,43 +39,46 @@ class MPC():
         """
 
         # going from state and action to next state with trained models
-        normalized_state = self.normalize_pcl(state).cuda()
-        normalized_action = action.cuda()
+        normalized_state = torch.from_numpy(self.normalize_pcl(state)).float().unsqueeze(0).cuda()
+        normalized_action = torch.from_numpy(action).cuda()
 
         z_states, neighborhood, center, logits = self.dvae.encode(normalized_state) #.to(device)
+        
+        state = torch.from_numpy(state)
+        action = torch.from_numpy(action)
         ns_center_unnormalized = predict_centroid_dynamics(state, action)
 
-        normalization_centroid = np.mean(state, axis=0)
+        normalization_centroid = np.mean(state.detach().numpy(), axis=0)
         ns_center = ns_center_unnormalized - normalization_centroid
         m = np.max(np.sqrt(np.sum(ns_center**2, axis=1)))
         ns_center = ns_center / m
         ns_center = torch.from_numpy(ns_center).float().unsqueeze(0).cuda() 
-        print("ns_center: ", ns_center.size())
 
         # feature dynamics prediction
+        normalized_action = normalized_action.float().unsqueeze(0).cuda()
         pred_features = self.feature_dynamics_network(z_states, ns_center, normalized_action)
 
         # decode the prediction
-        ret_recon_next = self.dvae.decode_features(pred_features, neighborhood, ns_center, logits, state)
+        ret_recon_next = self.dvae.decode_features(pred_features, neighborhood, ns_center, logits, normalized_state)
         recon_pcl = ret_recon_next[1]
         ns_pred = recon_pcl.squeeze().detach().cpu().numpy()
         return ns_pred
 
-    def plan(self, obs_pcl, target_pcl, sampler='random'):
+    def plan(self, obs_pcl, target_pcl):
         """
         Use model predictive control to unroll the dynamics model and find the best action sequence
         given the current point cloud observation and a target point cloud.
         """
         final_states, all_actions = [], []
-        state = obs_pcl.unsqueeze(0)
+        state = obs_pcl
         for _ in tqdm(range(self.n_actions)):
             with torch.no_grad():
 
                 actions = []
                 for _ in range(self.planning_horizon):
-                    if sampler == 'constrain_d':
+                    if self.sampler == 'constrain_d':
                         a = random_sample_normalized_constrained_action(self.action_dim)
-                    elif sampler == 'geometric_informed':
+                    elif self.sampler == 'geometric_informed':
                         geometric = GeometricSampler(None)
                         a = geometric.most_different_regions(state, target_pcl, num_regions=64)
                         a = normalize_action(a, self.action_dim)
@@ -84,18 +87,17 @@ class MPC():
 
                     # predict the next state given the proposed action
                     state = self.dynamics_model(state, a)
-                    actions.append(a)
+                    # TODO: conver state to numpy array with 2D
+
+                    # unnormalize action
+                    unnorm_a = unnormalize_a(a)
+                    actions.append(unnorm_a)
                 final_states.append(state)
                 all_actions.append(actions)
         
-        # get final distances to encoded target
-        target = np.expand_dims(target_pcl, axis=0)
-        # tile target to be equal to the shape of the final_states for efficient CD computation
-        target = np.tile(target, (len(final_states), 1, 1))
-        final_states = torch.from_numpy(np.array(final_states))
-        print("Target Shape: ", target.shape)
-        print("finalStates shape: ", final_states.shape)
-        dists = chamfer_distance(final_states, target)[0].cpu().detach().numpy()
+        cd_target = torch.from_numpy(np.expand_dims(target_pcl, axis=0)).float().cuda()
+        cd_final_state = torch.from_numpy(np.array(final_states)).float().cuda()
+        dists = [chamfer_distance(fs.unsqueeze(0), cd_target)[0].cpu().detach().numpy() for fs in cd_final_state]
         print("dists: ", dists)
 
         # get the index of the smallest distance
@@ -112,7 +114,7 @@ class MPC():
         # visualize best final clay state overlayed with the target
         best_final_state = final_states[idx]
         recon_pcl = np.reshape(best_final_state, (2048,3))
-        target = np.reshape(target, (2048,3))
+        target = np.reshape(target_pcl, (2048,3))
         target_pcl, pcl = plot_target_and_state_clouds(recon_pcl, target)
         o3d.visualization.draw_geometries([pcl, target_pcl])
 

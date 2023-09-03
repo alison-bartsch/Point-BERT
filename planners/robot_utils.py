@@ -8,7 +8,6 @@ import random
 import numpy as np
 import open3d as o3d
 import pyrealsense2 as rs
-from frankapy import FrankaArm
 from skimage.color import rgb2lab
 from matplotlib import pyplot as plt
 from shapely.geometry import Point, Polygon
