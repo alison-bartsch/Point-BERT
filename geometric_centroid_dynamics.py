@@ -88,38 +88,44 @@ def points_inside_rectangle(rectangle_points, push_dir, pcl):
     Given a 3D rectangular shape and a point cloud, return the points inside the rectangle, and the
     distance to move (in the direction of the push) to be outside of the rectangle.
     """
-    # return points in the format [[x1,y1,z1], [x2,y2,z2], ...] - this is for o3d line set visualization
-    # return associated lines indicating which points we want lines drawn  between i.e. [[0,1], [0,2], ...]
 
-    # TODO: THIS FUNCTION NOT WORKING CORRECTLY RIGHT NOW
+    center = np.mean(rectangle_points, axis=0)
+    dimensions = np.ptp(rectangle_points, axis=0)
+    v1 = rectangle_points[1] - rectangle_points[0]
+    v2 = rectangle_points[4] - rectangle_points[0]
+    v3 = rectangle_points[3] - rectangle_points[0]
+    rot_mat = np.column_stack((v1, v2, v3))
+    translate_cloud = pcl - center
+    rot_pcl = np.dot(translate_cloud, rot_mat)
+    half_dim = dimensions / 2
+    mask = np.all(np.abs(rot_pcl) <= half_dim, axis=1)
+    indices = np.where(mask)[0]
+    return indices
+    
+    # for the 2d case and doesn't work
+    ctr = np.mean(rectangle_points, axis=0)
+    width = np.linalg.norm(rectangle_points[1] - rectangle_points[0])
+    height = np.linalg.norm(rectangle_points[2] - rectangle_points[1])
+    angle_rad = -np.arctan2(rectangle_points[1][1] - rectangle_points[0][1], rectangle_points[1][0] - rectangle_points[0][0])
+    # translate cloud to common reference frame
+    pcl = pcl - ctr
+    pcl = pcl[:,0:2]
+    # rotate pcl
+    rot_mat = np.array([[np.cos(angle_rad), -np.sin(angle_rad)], [np.sin(angle_rad), np.cos(angle_rad)]])
+    rot_pcl = np.dot(pcl, rot_mat)
 
-    # print("\nRectangle Points: ", rectangle_points)
-    # print("Min: ", np.min(rectangle_points, axis=0))
+    half_width = width / 2
+    half_height = height / 2
+    mask = (np.abs(rot_pcl[:,0]) <= half_width) & (np.abs(rot_pcl[:,1]) <= half_height)
+    # return indices of the points inside the rotated rectangle
+    indices = np.where(mask)[0]
+    return indices
 
-    # assert False
 
-    # minx, miny, minz = np.min(rectangle_points, axis=0)
-    # maxx, maxy, maxz = np.max(rectangle_points, axis=0)
-
-    # print("minx: ", minx)
-    # print("miny: ", miny)
-    # print("minz: ", minz)
-    # print("maxx: ", maxx)
-    # print("maxy: ", maxy)
-    # print("maxz: ", maxz)
-
-    # inside_indices = np.where((pcl[:,0] > minx) & (pcl[:,0] < maxx) & (pcl[:,1] > miny) & (pcl[:,1] < maxy) & (pcl[:,2] > minz) & (pcl[:,2] < maxz))[0]
-
-    # print("og pcl: ", pcl.shape)
-    # print("inside: ", pcl[inside_indices,:].shape)
-    # return inside_indices
-
-    # assert False
+    # The version below doesn't account  for rotation and thus doesn't function as intended 
 
     min_corner = np.min(rectangle_points, axis=0)
     max_corner = np.max(rectangle_points, axis=0)
-    # print("Min corner: ", min_corner)
-    # print("Max corner: ", max_corner)
 
     inside_mask = np.all((min_corner <= pcl) & (pcl <= max_corner), axis=1)
     inside_indices = np.where(inside_mask)[0]
@@ -146,7 +152,7 @@ dataset = GeometricDataset(path, 'shell_scaled')
 
 test_samples = [0, 60, 120, 180, 240, 300, 360, 420, 480, 3000, 3060, 3120, 6000]
 for index in test_samples:
-    state, next_state, action = dataset.__getitem__(index)
+    state, next_state, action, _, _ = dataset.__getitem__(index)
 
     state = state.detach().numpy()
     action = action.detach().numpy()
@@ -158,7 +164,7 @@ for index in test_samples:
     # pcl_center = np.array([0.6, 0.0, 0.24]) # verified same pcl center that processed point clouds
     pcl_center = np.array([0.6, 0.0, 0.25])
     action[0:3] = action[0:3] - pcl_center
-    action[0:3] = action[0:3] + np.array([0.005, -0.002, 0.0]) # observational correction
+    action[0:3] = action[0:3] # + np.array([0.005, -0.002, 0.0]) # observational correction
     # print("action centered: ", action)
 
     # scale the action (multiply x,y,z,d by 10)
@@ -166,7 +172,8 @@ for index in test_samples:
     action_scaled[3] = action[3] # don't scale the rotation
     # print("Action Scaled:", action_scaled)
     # plot an 8cm (x10 to scale) line centered at x,y,z with rotation rx, ry, rz [currently just rz]
-    len = 10 * 0.08 # 8cm scaled  to point cloud scaling # TODO: figure out grasp width scaling issue
+    # len = 10 * 0.08 # 8cm scaled  to point cloud scaling # TODO: figure out grasp width scaling issue
+    len = 10 * 0.1
     # len = 1.6
 
     # NOTE: issue with the distance between fingertips in the unnormalized action
@@ -192,7 +199,8 @@ for index in test_samples:
     # get the end points for the grasp
     # delta = 2*0.5*(0.8 - action_scaled[4]) # NOTE: seems to be 2x scaled, but shouldn't be!
 
-    delta = 0.8 - action_scaled[4] 
+    # delta = 0.8 - action_scaled[4] 
+    delta = 1.0 - action_scaled[4]
     end_pts, _ = line_3d_start_end(ctr, rz, len - delta)
     top_end_pts, _ = line_3d_start_end(upper_ctr, rz, len - delta)
 
@@ -206,8 +214,13 @@ for index in test_samples:
     g1_top_end, _ = line_3d_start_end(top_end_pts[0], rz+90, 0.18)
     g1_points, g1_lines = line_3d_point_set([g1_base_start, g1_base_end, g1_top_start, g1_top_end])
 
+    # create oriented bounding box
+    g1_test = o3d.geometry.OrientedBoundingBox()
+    g1_bbox = g1_test.create_from_points(o3d.utility.Vector3dVector(g1_points))
+    g1_idx = g1_bbox.get_point_indices_within_bounding_box(o3d.utility.Vector3dVector(state))
+
     # get the points in state pcl inside gripper 1
-    g1_idx = points_inside_rectangle(g1_points, None, state)
+    # g1_idx = points_inside_rectangle(g1_points, None, state)
     inlier_pts = state.copy()
 
     # pointcloud with points inside rectangle
@@ -239,8 +252,13 @@ for index in test_samples:
     g2_top_end, _ = line_3d_start_end(top_end_pts[1], rz+90, 0.18)
     g2_points, g2_lines = line_3d_point_set([g2_base_start, g2_base_end, g2_top_start, g2_top_end])
 
+    # create oriented bounding box
+    g2_test = o3d.geometry.OrientedBoundingBox()
+    g2_bbox = g2_test.create_from_points(o3d.utility.Vector3dVector(g2_points))
+    g2_idx = g2_bbox.get_point_indices_within_bounding_box(o3d.utility.Vector3dVector(state))
+
     # get the points in state pcl inside gripper 1
-    g2_idx = points_inside_rectangle(g2_points, None, state)
+    # g2_idx = points_inside_rectangle(g2_points, None, state)
 
     # pointcloud with points inside rectangle
     g2_inside = state[g2_idx,:]
@@ -281,15 +299,21 @@ for index in test_samples:
     ns_colors = np.tile(np.array([0, 1, 0]), (ns.shape[0],1))
     ns_pcl.colors = o3d.utility.Vector3dVector(ns_colors)
 
+    # create black point cloud of g1_points and g2_points to sanity check corners
+    corners = o3d.geometry.PointCloud()
+    corners.points = o3d.utility.Vector3dVector(np.concatenate((g1_points, g2_points), axis=0))
+    corners_colors = np.tile(np.array([0, 0, 0]), (np.concatenate((g1_points, g2_points)).shape[0],1))
+    corners.colors = o3d.utility.Vector3dVector(corners_colors)
+
     ctr_action = o3d.geometry.PointCloud()
     action_cloud = action_scaled[0:3].reshape(1,3)
     print("Action: ", action_cloud)
     ctr_action.points = o3d.utility.Vector3dVector(action_scaled[0:3].reshape(1,3))
     ctr_colors = np.tile(np.array([1, 0, 0]), (1,1))
     ctr_action.colors = o3d.utility.Vector3dVector(ctr_colors)
-    o3d.visualization.draw_geometries([og_pcl, ns_pcl, ctr_action, line_set, g1, g2])
-    o3d.visualization.draw_geometries([og_pcl, ns_pcl, ctr_action, line_set, g1, g2, g1_inside_pcl, g2_inside_pcl])
-    o3d.visualization.draw_geometries([ns_pcl, ctr_action, line_set, g1, g2, inliers])
+    o3d.visualization.draw_geometries([og_pcl, ns_pcl, ctr_action, line_set, g1, g2, corners, g1_bbox])
+    o3d.visualization.draw_geometries([og_pcl, ns_pcl, ctr_action, line_set, g1, g2, g1_inside_pcl, g2_inside_pcl, corners])
+    o3d.visualization.draw_geometries([ns_pcl, ctr_action, line_set, g1, g2, inliers, corners])
     # o3d.visualization.draw_geometries([og_pcl, ns_pcl, ctr_action, line_set, g1_start, g1_end, 
     #                                    g1_top_start, g2_start, g2_end])
 

@@ -271,6 +271,8 @@ def most_different_regions(pc1, pc2, num_regions):
 
     # print("Most different: ", most_different)
     # print(len(most_different))
+
+    # TODO: go from cluster pairs to an action!!!!
     return cluster_pairs, labels1, labels2
     
 if __name__ == '__main__':

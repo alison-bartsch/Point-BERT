@@ -150,7 +150,8 @@ def square_distance(src, dst):
     """
     B, N, _ = src.shape
     _, M, _ = dst.shape
-    # src = src.double()
+    # if isinstance(src, torch.FloatTensor):
+    src = src.double()
     dist = -2 * torch.matmul(src, dst.permute(0, 2, 1))
     dist += torch.sum(src ** 2, -1).view(B, N, 1)
     dist += torch.sum(dst ** 2, -1).view(B, 1, M)
@@ -262,7 +263,7 @@ def force_directed_layout(graph, displacements, iterations=100, k=0.1, spring_le
             new_pos[node] = positions[node] + displacements[node]
     return new_pos
 
-def propagate_displacement(graph, node_to_move, displacement, max_edge_length, min_edge_length, max_iterations=100):
+def propagate_displacement(graph, node_to_move, displacement, max_edge_length=0.15, min_edge_length=0.005, max_iterations=100):
     """
     Given a graph and a single displacement, propagate the displacement through the graph maintaining
     edge length constraints.
@@ -325,7 +326,7 @@ def apply_displacements_to_nodes(graph, list_of_nodes, displacements):
     update the graph.
     """
     for i in range(len(list_of_nodes)):
-        graph.nodes[list_of_nodes[i]]['pos'] += displacements[i]
+        graph.nodes[list_of_nodes[i]]['pos'] -= displacements[i]
     return graph
 
 def propagate_displacements(graph, list_of_nodes, displacements, max_edge_length, min_edge_length, n_steps=10, max_iters=10):
@@ -369,3 +370,139 @@ def propagate_displacements(graph, list_of_nodes, displacements, max_edge_length
         if all(length <= max_edge_length for _, _, length in edge_lengths):
             break
     return updated_graph
+
+def predict_centroid_dynamics(state, action):
+    """
+    Given a state and action, get the centroids and predict the next state geometrically.
+    """
+    # get state centroid
+    state = torch.unsqueeze(state, 0).cuda()
+    group_func = Group(num_group = 64, group_size = 32)
+    _, centroids = group_func(state)
+    centroids = centroids.squeeze().cpu().detach().numpy()
+    state = centroids
+
+    # sanity check point distances for graph dynamics
+    kdtree = KDTree(state)
+    nearest_dist, nearest_idx = kdtree.query(state, k=2)
+    # max = np.amax(nearest_dist)
+    # if max > 1:
+    #     print("scaling...")
+    # #     state = state / 10
+    # print("Min dist: ", np.amin(nearest_dist))
+    # print("Max dist: ", np.amax(nearest_dist))
+    # print("mean dist: ", np.mean(nearest_dist))
+
+
+    # state = state.detach().numpy()
+    action = action.detach().numpy()
+
+    # unnormalize the action
+    action = unnormalize_a(action)
+
+    # center the action at the origin of the point cloud
+    # pcl_center = np.array([0.6, 0.0, 0.24]) # verified same pcl center that processed point clouds
+    pcl_center = np.array([0.6, 0.0, 0.25])
+    action[0:3] = action[0:3] - pcl_center
+    action[0:3] = action[0:3] + np.array([0.005, -0.002, 0.0]) # observational correction
+
+    # scale the action (multiply x,y,z,d by 10)
+    action_scaled = action * 10
+    action_scaled[3] = action[3] # don't scale the rotation
+    len = 10 * 0.1 # 8cm scaled  to point cloud scaling # TODO: figure out grasp width scaling issue
+    # len = 10 * 0.95
+        
+    # get the points and lines for the action orientation visualization
+    ctr = action_scaled[0:3]
+    upper_ctr = ctr + np.array([0,0, 0.6])
+    rz = 90 + action_scaled[3]
+    points, lines = line_3d_start_end(ctr, rz, len)
+    line_set = o3d.geometry.LineSet()
+    line_set.points = o3d.utility.Vector3dVector(points)
+    line_set.lines = o3d.utility.Vector2iVector(lines)
+    line_set.colors = o3d.utility.Vector3dVector(np.tile(np.array([1, 0, 0]), (lines.shape[0],1)))
+
+    delta = 0.99 - action_scaled[4]  # TODO: maybe add 0.95*action_scaled[4] ?????
+    # delta = 0.95 - action_scaled[4]
+    end_pts, _ = line_3d_start_end(ctr, rz, len - delta)
+    top_end_pts, _ = line_3d_start_end(upper_ctr, rz, len - delta)
+
+    # get the top points for the grasp (given gripper finger height)
+    top_points, _ = line_3d_start_end(upper_ctr, rz, len)
+
+    # gripper 1 
+    g1_base_start, _ = line_3d_start_end(points[0], rz+90, 0.18)
+    g1_base_end, _ = line_3d_start_end(end_pts[0], rz+90, 0.18)
+    g1_top_start, _ = line_3d_start_end(top_points[0], rz+90, 0.18)
+    g1_top_end, _ = line_3d_start_end(top_end_pts[0], rz+90, 0.18)
+    g1_points, _ = line_3d_point_set([g1_base_start, g1_base_end, g1_top_start, g1_top_end])
+
+    # create oriented bounding box
+    g1_test = o3d.geometry.OrientedBoundingBox()
+    g1_bbox = g1_test.create_from_points(o3d.utility.Vector3dVector(g1_points))
+    g1_idx= g1_bbox.get_point_indices_within_bounding_box(o3d.utility.Vector3dVector(state))
+
+    # get the points in state pcl inside gripper 1
+    # g1_idx = points_inside_rectangle(g1_points, None, state)
+    inlier_pts = state.copy()
+
+    # get the displacement vector for the gripper 1 base
+    g1_dir_unit = dir_vec_from_points(end_pts[0], points[0])
+    g1_displacement_vec = end_pts[0] - points[0]
+
+    # apply the displacement vector to all the points in the state point cloud
+    g1_diffs = np.tile(end_pts[0], (inlier_pts[g1_idx,:].shape[0],1)) - inlier_pts[g1_idx,:] 
+    g1_diffs = np.linalg.norm(g1_diffs, axis=1)
+    # inlier_pts[g1_idx,:] = inlier_pts[g1_idx,:] -  np.tile(g1_diffs, (3,1)).T * np.tile(g1_dir_unit, (inlier_pts[g1_idx,:].shape[0],1))
+
+    # gripper 2
+    g2_base_start, _ = line_3d_start_end(points[1], rz+90, 0.18)
+    g2_base_end, _ = line_3d_start_end(end_pts[1], rz+90, 0.18)
+    g2_top_start, _ = line_3d_start_end(top_points[1], rz+90, 0.18)
+    g2_top_end, _ = line_3d_start_end(top_end_pts[1], rz+90, 0.18)
+    g2_points, _ = line_3d_point_set([g2_base_start, g2_base_end, g2_top_start, g2_top_end])
+
+    # create oriented bounding box
+    g2_test = o3d.geometry.OrientedBoundingBox()
+    g2_bbox = g2_test.create_from_points(o3d.utility.Vector3dVector(g2_points))
+    g2_idx = g2_bbox.get_point_indices_within_bounding_box(o3d.utility.Vector3dVector(state))
+
+    # get the points in state pcl inside gripper 1
+    # g2_idx = points_inside_rectangle(g2_points, None, state)
+
+    # pointcloud with points inside rectangle
+    g2_inside = state[g2_idx,:]
+    g2_inside_pcl = o3d.geometry.PointCloud()
+    g2_inside_pcl.points = o3d.utility.Vector3dVector(g2_inside)
+    g2_inside_colors = np.tile(np.array([1, 0, 0]), (g2_inside.shape[0],1))
+    g2_inside_pcl.colors = o3d.utility.Vector3dVector(g2_inside_colors)
+
+    # get the displacement vector for the gripper 1 base
+    g2_dir_unit = dir_vec_from_points(end_pts[1], points[1])
+    g2_displacement_vec = end_pts[1] - points[1]
+
+    # apply the displacement vector to all the points in the state point cloud
+    g2_diffs = np.tile(end_pts[1], (inlier_pts[g2_idx,:].shape[0],1)) - inlier_pts[g2_idx,:] 
+    g2_diffs = np.linalg.norm(g2_diffs, axis=1)
+    # inlier_pts[g2_idx,:] = inlier_pts[g2_idx,:] -  np.tile(g2_diffs, (3,1)).T * np.tile(g2_dir_unit, (inlier_pts[g2_idx,:].shape[0],1))
+
+    # test graph propagation
+    G = create_graph_from_point_cloud(inlier_pts, k=5)
+    grasp_indices = g1_idx + g2_idx
+    displacements = np.concatenate((np.tile(g1_diffs, (3,1)).T * np.tile(g1_dir_unit, (inlier_pts[g1_idx,:].shape[0],1)), 
+                                    np.tile(g2_diffs, (3,1)).T * np.tile(g2_dir_unit, (inlier_pts[g2_idx,:].shape[0],1))))
+
+    new_graph = propagate_displacements(G, grasp_indices, displacements, max_edge_length=0.13, min_edge_length=0.025)
+
+    # Past Combos:
+        # 0.125/0.0025 ---> CD = 0.01516
+        # 0.15/0.005 ---> CD = 0.014595
+        # 0.18/0.005 ---> CD = 0.01519
+        # 0.14/0.005 ---> CD = 0.01477
+        # 0.13/0.005 ---> CD = 0.01366
+        # 0.12/0.005 ---> CD = 0.01466
+        # 0.13/0.01 ---> CD = 0.1481
+        # 0.13/0.05 ---> CD = 0.014146
+    inlier_pts = create_point_cloud_from_graph(new_graph)
+
+    return inlier_pts
