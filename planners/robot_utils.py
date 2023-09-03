@@ -133,12 +133,12 @@ def plot_target_and_state_clouds(state, target):
     """
     target_pcl = o3d.geometry.PointCloud()
     target_pcl.points = o3d.utility.Vector3dVector(target)
-    target_colors = np.tile(np.array([1,0,0]), (len(target),1))
+    target_colors = np.tile(np.array([0,0,1]), (len(target),1))
     target_pcl.colors = o3d.utility.Vector3dVector(target_colors)
 
     pcl = o3d.geometry.PointCloud()
     pcl.points = o3d.utility.Vector3dVector(state)
-    pcl_colors = np.tile(np.array([0,0,1]), (len(state),1))
+    pcl_colors = np.tile(np.array([1,0,0]), (len(state),1))
     pcl.colors = o3d.utility.Vector3dVector(pcl_colors)
     return target_pcl, pcl
 
@@ -238,15 +238,27 @@ def remove_stage_grippers(pcd):
 
     points = np.asarray(pcd.points)
     colors = np.asarray(pcd.colors)
-    ind_z_lower = np.where(points[:,2] > 0.05)
-    pcd.points = o3d.utility.Vector3dVector(points[ind_z_lower])
-    pcd.colors = o3d.utility.Vector3dVector(colors[ind_z_lower])
+
+    ind_z_upper = np.where(points[:,2] > 0.207)
+    pcd.points = o3d.utility.Vector3dVector(points[ind_z_upper])
+    pcd.colors = o3d.utility.Vector3dVector(colors[ind_z_upper])
 
     points = np.asarray(pcd.points)
     colors = np.asarray(pcd.colors)
-    ind_z_upper = np.where(points[:,2] < 0.1)
-    pcd.points = o3d.utility.Vector3dVector(points[ind_z_upper])
-    pcd.colors = o3d.utility.Vector3dVector(colors[ind_z_upper])
+    ind_z_lower = np.where(points[:,2] < 0.27)
+    pcd.points = o3d.utility.Vector3dVector(points[ind_z_lower])
+    pcd.colors = o3d.utility.Vector3dVector(colors[ind_z_lower])
+
+    # # PREVIOUS (BEFORE 8/29)
+    # ind_z_upper = np.where(points[:,2] > 0.2325)
+    # pcd.points = o3d.utility.Vector3dVector(points[ind_z_upper])
+    # pcd.colors = o3d.utility.Vector3dVector(colors[ind_z_upper])
+
+    # points = np.asarray(pcd.points)
+    # colors = np.asarray(pcd.colors)
+    # ind_z_lower = np.where(points[:,2] < 0.305)
+    # pcd.points = o3d.utility.Vector3dVector(points[ind_z_lower])
+    # pcd.colors = o3d.utility.Vector3dVector(colors[ind_z_lower])
     
     return pcd
 
@@ -298,20 +310,25 @@ def fuse_point_clouds(pc2, pc3, pc4, pc5):
     Updated fusal based on Charlotte's improvements
     """    
     # import the transforms
-    transform_23 = np.load('transforms/transform_cam2_to_cam3.npy')
-    transform_34 = np.load('transforms/transform_cam3_to_cam4.npy')
-    transform_45 = np.load('transforms/transform_cam4_to_cam5.npy')
-    transform_5w = np.load('transforms/transform_cam5_to_world.npy')
-    
+    transform_23 = np.load('planners/Camera_Extrinsics/transform_cam2_to_cam3_wonderful.npy')
+    transform_34 = np.load('planners/Camera_Extrinsics/transform_cam3_to_cam4_perfect.npy')
+    transform_54 = np.load('planners/Camera_Extrinsics/transform_cam5_to_cam4_perfect.npy')
+    transform_4w = np.load('planners/Camera_Extrinsics/cam4_world_transform.npy')
+    transform_w_improvement = np.load('planners/Camera_Extrinsics/world_transform.npy')
+
     # transform and combine all clouds
-    pc2.transform([[1, 0, 0, 0], [0, -1, 0, 0],[0, 0, -1, 0], [0, 0, 0, 1]])
-    pc3.transform([[1, 0, 0, 0], [0, -1, 0, 0],[0, 0, -1, 0], [0, 0, 0, 1]])
-    pc4.transform([[1, 0, 0, 0], [0, -1, 0, 0],[0, 0, -1, 0], [0, 0, 0, 1]])
-    pc5.transform([[1, 0, 0, 0], [0, -1, 0, 0],[0, 0, -1, 0], [0, 0, 0, 1]])
-    pc2.transform(transform_23).transform(transform_34).transform(transform_45).transform(transform_5w)
-    pc3.transform(transform_34).transform(transform_45).transform(transform_5w)
-    pc4.transform(transform_45).transform(transform_5w)
-    pc5.transform(transform_5w)
+    pc2.transform(transform_23)
+    pc2.transform(transform_34)
+    pc2.transform(transform_4w)
+    pc2.transform(transform_w_improvement)
+    pc3.transform(transform_34)
+    pc3.transform(transform_4w)
+    pc3.transform(transform_w_improvement)
+    pc4.transform(transform_4w)
+    pc4.transform(transform_w_improvement)
+    pc5.transform(transform_54)
+    pc5.transform(transform_4w)
+    pc5.transform(transform_w_improvement)
 
     pointcloud = o3d.geometry.PointCloud()
     pointcloud.points = pc5.points
@@ -323,14 +340,18 @@ def fuse_point_clouds(pc2, pc3, pc4, pc5):
     pointcloud.points.extend(pc4.points)
     pointcloud.colors.extend(pc4.colors)
 
+    o3d.visualization.draw_geometries([pointcloud])
+
     # ------ cropping point cloud ------ 
-    pointcloud, ind = pointcloud.remove_statistical_outlier(nb_neighbors=20, std_ratio=2.0) # remove statistical outliers
+    pointcloud, ind = pointcloud.remove_statistical_outlier(nb_neighbors=20, std_ratio=2.0) # remove statistical outliers                       
     pointcloud = remove_stage_grippers(pointcloud)
-    pointcloud = remove_background(pointcloud, radius = .2, center = np.array([0.6, -0.1, 0.05]))
-    # o3d.visualization.draw_geometries([pointcloud])
+    o3d.visualization.draw_geometries([pointcloud])
+    pointcloud = remove_background(pointcloud, radius = .15, center = np.array([0.6, -0.05, 0.3]))
+    o3d.visualization.draw_geometries([pointcloud])
 
     # ----- color thresholding -----
     pointcloud = lab_color_crop(pointcloud)
+    o3d.visualization.draw_geometries([pointcloud])
     pointcloud, ind = pointcloud.remove_statistical_outlier(nb_neighbors=20, std_ratio=2.0)
 
     # ----- calculate point cloud normals -----
@@ -339,13 +360,18 @@ def fuse_point_clouds(pc2, pc3, pc4, pc5):
     # ------ downsample the point cloud -------
     downpdc = pointcloud.voxel_down_sample(voxel_size=0.0025)
     downpdc_points= np.asarray(downpdc.points)
+    # print("min: ", np.amin(downpdc_points, axis=0))
+    # print("max: ", np.amax(downpdc_points, axis=0))
 
     # ----- get shape of clay base --------
-    polygon_indices = np.where(downpdc_points[:,2] < 0.07)
+    # polygon_indices = np.where(downpdc_points[:,2] < 0.236) # PREVIOUS BEFORE 8/29
+    polygon_indices = np.where(downpdc_points[:,2] < 0.22)
+
+    # polygon_indices = np.where(downpdc_points[:,2] < 0.234)
     polygon_pcl = o3d.geometry.PointCloud()
     polygon_pcl.points = o3d.utility.Vector3dVector(downpdc_points[polygon_indices])
 
-     # ------ generate a 2d grid of points for the base ---------
+    # ------ generate a 2d grid of points for the base ---------
     base_plane = []
     minx, maxx = np.amin(downpdc_points[:,0]), np.amax(downpdc_points[:,0])
     miny, maxy = np.amin(downpdc_points[:,1]), np.amax(downpdc_points[:,1])
@@ -353,7 +379,10 @@ def fuse_point_clouds(pc2, pc3, pc4, pc5):
     x_vals = np.linspace(minx, maxx, 50)
     y_vals = np.linspace(miny, maxy, 50)
     xx, yy = np.meshgrid(x_vals, y_vals) # create grid that covers full area of 2d polygon  
-    z = 0.06 # height of the clay base
+    # z = 0.234 # height of the clay base
+
+    z = 0.21
+    # z = 0.232 # PREVIOUS BEFORE 8/29
     zz = np.ones(len(xx.flatten()))*z
     points = np.vstack((xx.flatten(), yy.flatten(), zz)).T
 
@@ -375,20 +404,25 @@ def fuse_point_clouds(pc2, pc3, pc4, pc5):
     base_cloud.points.extend(downpdc.points)
     cropped_plane, ind = base_cloud.remove_statistical_outlier(nb_neighbors=20, std_ratio=2.0)
 
+    base_cloud.colors = o3d.utility.Vector3dVector(np.tile(np.array([0,0,1]), (len(base_cloud.points),1)))
+    o3d.visualization.draw_geometries([base_cloud])
+
     # uniformly sample 2048 points from each point cloud
     points = np.asarray(base_cloud.points)
     idxs = np.random.randint(0,len(points),size=2048)
     points = points[idxs]
 
     # re-process the processed_pcl to center
-    pc_center = base_cloud.get_center()
+    pc_center = np.array([0.6, 0.0, 0.24])
+    # pc_center = base_cloud.get_center() # TODO: have the center hard coded for consistency w.r.t. cloud
     centered_points = points - pc_center
 
     scale = 10
     rescaled_points = scale*centered_points
 
-    # pointcloud = o3d.geometry.PointCloud()
-    # pointcloud.points = o3d.utility.Vector3dVector(rescaled_points)
+    pointcloud = o3d.geometry.PointCloud()
+    pointcloud.points = o3d.utility.Vector3dVector(rescaled_points)
+    pointcloud.colors = o3d.utility.Vector3dVector(np.tile(np.array([0,0,1]), (len(rescaled_points),1)))
     # o3d.visualization.draw_geometries([pointcloud])
     return rescaled_points
 

@@ -39,6 +39,8 @@ class MPC():
         """
 
         # going from state and action to next state with trained models
+        print("State Mean: ", np.mean(state, axis=0))
+        print("Normalized State Mean: ", np.mean(self.normalize_pcl(state), axis=0))
         normalized_state = torch.from_numpy(self.normalize_pcl(state)).float().unsqueeze(0).cuda()
         normalized_action = torch.from_numpy(action).cuda()
 
@@ -62,6 +64,10 @@ class MPC():
         ret_recon_next = self.dvae.decode_features(pred_features, neighborhood, ns_center, logits, normalized_state)
         recon_pcl = ret_recon_next[1]
         ns_pred = recon_pcl.squeeze().detach().cpu().numpy()
+
+        # unnormalize the predicted next state
+        ns_pred = ns_pred * m
+        ns_pred = ns_pred + normalization_centroid
         return ns_pred
 
     def plan(self, obs_pcl, target_pcl):
@@ -104,12 +110,6 @@ class MPC():
         idx = np.argmin(dists)
         best_planned_dist = dists[idx]
         print("\nBest Planned Dist: ", best_planned_dist)
-        
-        # get the distance between current state and target
-        obs_state = torch.reshape(torch.FloatTensor(np.expand_dims(obs_pcl, axis=0)), (1, 3, 2048))
-        # calculate CD between decoded obs_state and target
-        decoded_dist = None
-        print("\nCur Decoded Dist: ", decoded_dist)
 
         # visualize best final clay state overlayed with the target
         best_final_state = final_states[idx]
@@ -118,6 +118,7 @@ class MPC():
         target_pcl, pcl = plot_target_and_state_clouds(recon_pcl, target)
         o3d.visualization.draw_geometries([pcl, target_pcl])
 
-        return all_actions[idx], decoded_dist, best_planned_dist
+        final_state = final_states[-1]
+        return all_actions[idx], final_state, best_planned_dist
 
         
