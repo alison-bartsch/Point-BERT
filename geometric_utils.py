@@ -150,8 +150,11 @@ def square_distance(src, dst):
     """
     B, N, _ = src.shape
     _, M, _ = dst.shape
-    # if isinstance(src, torch.FloatTensor):
-    src = src.double()
+
+    if src.dtype != dst.dtype:
+        dst = dst.double()
+        src = src.double()
+
     dist = -2 * torch.matmul(src, dst.permute(0, 2, 1))
     dist += torch.sum(src ** 2, -1).view(B, N, 1)
     dist += torch.sum(dst ** 2, -1).view(B, 1, M)
@@ -329,7 +332,7 @@ def apply_displacements_to_nodes(graph, list_of_nodes, displacements):
         graph.nodes[list_of_nodes[i]]['pos'] -= displacements[i]
     return graph
 
-def propagate_displacements(graph, list_of_nodes, displacements, max_edge_length, min_edge_length, n_steps=10, max_iters=10):
+def propagate_displacements(graph, list_of_nodes, displacements, max_edge_length, min_edge_length, n_steps=1, max_iters=20):
     """
     """
     updated_graph = graph.copy()

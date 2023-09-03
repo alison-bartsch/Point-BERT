@@ -39,8 +39,8 @@ class MPC():
         """
 
         # going from state and action to next state with trained models
-        print("State Mean: ", np.mean(state, axis=0))
-        print("Normalized State Mean: ", np.mean(self.normalize_pcl(state), axis=0))
+        # print("State Mean: ", np.mean(state, axis=0))
+        # print("Normalized State Mean: ", np.mean(self.normalize_pcl(state), axis=0))
         normalized_state = torch.from_numpy(self.normalize_pcl(state)).float().unsqueeze(0).cuda()
         normalized_action = torch.from_numpy(action).cuda()
 

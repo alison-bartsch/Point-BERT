@@ -333,7 +333,7 @@ def apply_displacements_to_nodes(graph, list_of_nodes, displacements):
         graph.nodes[list_of_nodes[i]]['pos'] -= displacements[i]
     return graph
 
-def propagate_displacements(graph, list_of_nodes, displacements, max_edge_length, min_edge_length, n_steps=10, max_iters=10):
+def propagate_displacements(graph, list_of_nodes, displacements, max_edge_length, min_edge_length, n_steps=1, max_iters=20):
     """
     """
     updated_graph = graph.copy()

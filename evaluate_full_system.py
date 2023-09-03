@@ -92,6 +92,13 @@ for index in test_samples:
     ret_recon_next = dvae.decode_features(pred_features, neighborhood, ns_center, logits, state)
     recon_pcl = ret_recon_next[1]
 
+    # visualize state cloud
+    s = state.squeeze().detach().cpu().numpy()
+    s_pcl = o3d.geometry.PointCloud()
+    s_pcl.points = o3d.utility.Vector3dVector(s)
+    s_colors = np.tile(np.array([0, 0, 1]), (len(s),1))
+    s_pcl.colors = o3d.utility.Vector3dVector(s_colors)
+
     # visualize reconstructed full cloud cloud [RED]
     recon_pcl = recon_pcl.squeeze().detach().cpu().numpy()
     recon_pcl = np.reshape(recon_pcl, (2048, 3))
@@ -100,32 +107,37 @@ for index in test_samples:
     pcl_colors = np.tile(np.array([1, 0, 0]), (len(recon_pcl),1))
     pcl.colors = o3d.utility.Vector3dVector(pcl_colors)
     o3d.visualization.draw_geometries([pcl, og_pcl]) # , vae_pcl])
+    o3d.visualization.draw_geometries([s_pcl])
+    o3d.visualization.draw_geometries([pcl])
+    o3d.visualization.draw_geometries([og_pcl])
 
-    # create og centroid point cloud [BLUE]
-    # ns_center = ns_gt_center.squeeze().detach().cpu().numpy()
-    ns_center_pcl = ns_gt_center.squeeze().cpu().numpy()
-    og_pcl_cent = o3d.geometry.PointCloud()
-    og_pcl_cent.points = o3d.utility.Vector3dVector(ns_center_pcl)
-    og_colors_cent = np.tile(np.array([0, 0, 1]), (len(ns_center_pcl),1))
-    og_pcl_cent.colors = o3d.utility.Vector3dVector(og_colors_cent)
+    # # create og centroid point cloud [BLUE]
+    # # ns_center = ns_gt_center.squeeze().detach().cpu().numpy()
+    # ns_center_pcl = ns_gt_center.squeeze().cpu().numpy()
+    # og_pcl_cent = o3d.geometry.PointCloud()
+    # og_pcl_cent.points = o3d.utility.Vector3dVector(ns_center_pcl)
+    # og_colors_cent = np.tile(np.array([0, 0, 1]), (len(ns_center_pcl),1))
+    # og_pcl_cent.colors = o3d.utility.Vector3dVector(og_colors_cent)
 
-    # create state centroid point cloud [GREEN]
-    s_center_pcl = center.squeeze().cpu().numpy()
-    s_pcl = o3d.geometry.PointCloud()
-    s_pcl.points = o3d.utility.Vector3dVector(s_center_pcl)
-    s_colors = np.tile(np.array([0, 1, 0]), (len(s_center_pcl),1))
-    s_pcl.colors = o3d.utility.Vector3dVector(s_colors)
+    # # create state centroid point cloud [GREEN]
+    # s_center_pcl = center.squeeze().cpu().numpy()
+    # s_pcl = o3d.geometry.PointCloud()
+    # s_pcl.points = o3d.utility.Vector3dVector(s_center_pcl)
+    # s_colors = np.tile(np.array([0, 1, 0]), (len(s_center_pcl),1))
+    # s_pcl.colors = o3d.utility.Vector3dVector(s_colors)
     
-    # visualize reconstructed centoird point cloud [RED]
-    pred_ns_center = ns_center.squeeze().detach().cpu().numpy()
-    ns_pcl_cent = o3d.geometry.PointCloud()
-    ns_pcl_cent.points = o3d.utility.Vector3dVector(pred_ns_center)
-    ns_pcl_colors = np.tile(np.array([1, 0, 0]), (len(pred_ns_center),1))
-    ns_pcl_cent.colors = o3d.utility.Vector3dVector(ns_pcl_colors)
-    o3d.visualization.draw_geometries([s_pcl, og_pcl_cent, ns_pcl_cent])
+    # # visualize reconstructed centoird point cloud [RED]
+    # pred_ns_center = ns_center.squeeze().detach().cpu().numpy()
+    # ns_pcl_cent = o3d.geometry.PointCloud()
+    # ns_pcl_cent.points = o3d.utility.Vector3dVector(pred_ns_center)
+    # ns_pcl_colors = np.tile(np.array([1, 0, 0]), (len(pred_ns_center),1))
+    # ns_pcl_cent.colors = o3d.utility.Vector3dVector(ns_pcl_colors)
+    # o3d.visualization.draw_geometries([s_pcl, og_pcl_cent, ns_pcl_cent])
 
     # get chamfer distance between recon_pcl and ns 
     chamfer_full_cloud = chamfer_distance(next_state, ret_recon_next[1])[0].cpu().detach().numpy()
+    print("CD: ", chamfer_full_cloud)
+    
     cds_full_cloud.append(chamfer_full_cloud)
 
 mean_cd = np.mean(cds_full_cloud)
