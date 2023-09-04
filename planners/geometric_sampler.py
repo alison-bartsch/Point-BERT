@@ -274,6 +274,51 @@ def most_different_regions(pc1, pc2, num_regions):
 
     # TODO: go from cluster pairs to an action!!!!
     return cluster_pairs, labels1, labels2
+
+def __rotation_from_vector(vector):
+    """
+    Given a direction vector, calculate the roll pitch and yaw of the vector.
+    """
+    vector = vector / np.linalg.norm(vector)
+    # yaw = np.arctan2(vector[1], vector[0])
+    # pitch = np.arctan2(vector[1], np.sqrt(vector[0]**2 + vector[1]**2))
+    yaw = np.degrees(np.arctan2(vector[1], vector[0]))
+    pitch = np.degrees(np.arcsin(-vector[2]))
+    roll = np.degrees(np.arctan2(-vector[1], -vector[2]))
+    return np.array([np.degrees(roll), np.degrees(pitch), np.degrees(yaw)])
+
+def geometric_sampler(pc1, pc2, n_samples):
+    cluster_pairs, labels1, labels2 = most_different_regions(points_1, points_2, 45) # original: 64
+    for i in range(n_samples):
+        region_pair = cluster_pairs[i]
+        point1 = region_pair[0]
+        point2 = region_pair[1]
+        dist = region_pair[2]
+
+        # print("Point1: ", point1)
+        # print("Point2: ", point2)
+        # print("Dist: ", dist)
+
+        region1_idx = np.where(point1 == labels1)[0]
+        region1 = points_1[region1_idx, :]
+        
+        region2_idx = np.where(point2 == labels2)[0]
+        region2 = points_2[region2_idx, :]
+
+        # get the action
+        ctr1 = np.mean(region1, axis=0)
+        ctr2 = np.mean(region2, axis=0)
+        vector = ctr2 - ctr1
+        rot = __rotation_from_vector(vector)
+        x = ctr1[0]
+        y = ctr1[1]
+        z = ctr1[2]
+        rx = rot[0]
+        ry = rot[1]
+        rz = rot[2]
+        d = dist
+
+        return np.array([x, y, z, rx, ry, rz, d])
     
 if __name__ == '__main__':
     args = None
@@ -318,6 +363,13 @@ if __name__ == '__main__':
         
         region2_idx = np.where(point2 == labels2)[0]
         region2 = points_2[region2_idx, :]
+
+        # TODO: given region1 and region2, get the action
+            # get the center of each region
+            # get the vector from region1 to region2
+            # set gripper starting x,y,z as the center of region1
+            # set d as the distance between region1 and region2
+            # set rotation as the rotation of the vector from region1 to region2
 
         # convert to green points and visualize
         reg1 = o3d.geometry.PointCloud()

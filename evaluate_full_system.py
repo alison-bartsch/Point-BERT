@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import open3d as o3d
 from models.dvae import *
+from tqdm import tqdm
 from tools import builder
 from geometric_utils import *
 from utils.config import cfg_from_yaml_file
@@ -39,7 +40,68 @@ geometric_dataset = GeometricDataset(path, 'shell_scaled')
 cds_full_cloud = []
 cds_centroid = []
 
-# NOTE: the inverals that are not of 60 are scaled incorrectly!!!!!!!
+# loop for iterating through all the samples, and reporting:
+    # (1) mean + std dev of CD on whole pcl
+    # (2) mean + std dev of CD on centroid
+for index in tqdm(range(7620)):
+    state, next_state, action = dataset.__getitem__(index)
+    state = torch.unsqueeze(state, 0)
+    next_state = torch.unsqueeze(next_state, 0)
+    action = torch.unsqueeze(action, 0)
+
+    state = state.cuda()
+    next_state = next_state.cuda()
+    action = action.cuda()
+
+    z_states, neighborhood, center, logits = dvae.encode(state) #.to(device)
+    z_ns, ns_neighborhood, ns_gt_center, ns_logits = dvae.encode(next_state)
+    ns_vae_decoded = dvae.decode(z_ns, ns_neighborhood, ns_gt_center, ns_logits, next_state)
+
+    # TODO: add in the geometric centroid dynamics propagator
+        # should take in the centroid state (unnormalized) and the action
+        # should return ns_center
+    unnormalized_state, unnormalized_ns, unnormalized_action, normalization_centroid, _ = geometric_dataset.__getitem__(index)
+    ns_center_unnormalized = predict_centroid_dynamics(unnormalized_state, unnormalized_action)
+
+    # TODO: make this optional
+    ns_center_torch = torch.from_numpy(ns_center_unnormalized).unsqueeze(0).cuda()
+    ns_center_delta = center_dynamics_network(ns_center_torch, action)
+    ns_center_delta = ns_center_delta.detach().cpu().numpy()
+
+    ns_center = ns_center_unnormalized - normalization_centroid
+    m = np.max(np.sqrt(np.sum(ns_center**2, axis=1)))
+    ns_center = ns_center / m
+    # ns_center = ns_center + ns_center_delta
+    ns_center = torch.from_numpy(ns_center).float().unsqueeze(0).cuda() 
+    # ns_center = torch.from_numpy(ns_center).float().cuda() 
+
+
+    # feature dynamics prediction
+    pred_features = feature_dynamics_network(z_states, ns_center, action)
+
+    # decode the prediction
+    ret_recon_next = dvae.decode_features(pred_features, neighborhood, ns_center, logits, state)
+    recon_pcl = ret_recon_next[1]
+
+    # get chamfer distance between recon_pcl and ns 
+    chamfer_full_cloud = chamfer_distance(next_state, ret_recon_next[1])[0].cpu().detach().numpy()
+    chamfer_centroid = chamfer_distance(ns_gt_center, ns_center)[0].cpu().detach().numpy()
+
+    cds_full_cloud.append(chamfer_full_cloud)
+    cds_centroid.append(chamfer_centroid)
+
+mean_cd = np.mean(cds_full_cloud)
+std_cd = np.std(cds_full_cloud)
+print("CD Full cloud mean: ", mean_cd)
+print("CD Full cloud std: ", std_cd)
+
+mean_cd_centroid = np.mean(cds_centroid)
+std_cd_centroid = np.std(cds_centroid)
+print("CD Centroid mean: ", mean_cd_centroid)
+print("CD Centroid std: ", std_cd_centroid)
+
+assert False
+
 test_samples = [2, 2133, 6011, 0, 60, 120, 180, 240, 300, 360, 420, 480, 3060] # , 3122, 6011, 7048]
 for index in test_samples:
     state, next_state, action = dataset.__getitem__(index)
