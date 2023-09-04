@@ -127,8 +127,7 @@ def main_loop(cam_pipelines, cam_streams, udp, target_pcl, exp_args, save_path, 
         while True:
             replan_msg = udp.ReadReceivedData()
             if replan_msg is not None:
-                target_list = replan_msg.split(',')
-                print(target_list)
+                print(replan_msg)
                 break
     
     done_queue.put("Done!")
