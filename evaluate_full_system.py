@@ -57,24 +57,13 @@ for index in tqdm(range(7620)):
     z_ns, ns_neighborhood, ns_gt_center, ns_logits = dvae.encode(next_state)
     ns_vae_decoded = dvae.decode(z_ns, ns_neighborhood, ns_gt_center, ns_logits, next_state)
 
-    # TODO: add in the geometric centroid dynamics propagator
-        # should take in the centroid state (unnormalized) and the action
-        # should return ns_center
     unnormalized_state, unnormalized_ns, unnormalized_action, normalization_centroid, _ = geometric_dataset.__getitem__(index)
     ns_center_unnormalized = predict_centroid_dynamics(unnormalized_state, unnormalized_action)
-
-    # TODO: make this optional
-    ns_center_torch = torch.from_numpy(ns_center_unnormalized).unsqueeze(0).cuda()
-    ns_center_delta = center_dynamics_network(ns_center_torch, action)
-    ns_center_delta = ns_center_delta.detach().cpu().numpy()
 
     ns_center = ns_center_unnormalized - normalization_centroid
     m = np.max(np.sqrt(np.sum(ns_center**2, axis=1)))
     ns_center = ns_center / m
-    # ns_center = ns_center + ns_center_delta
     ns_center = torch.from_numpy(ns_center).float().unsqueeze(0).cuda() 
-    # ns_center = torch.from_numpy(ns_center).float().cuda() 
-
 
     # feature dynamics prediction
     pred_features = feature_dynamics_network(z_states, ns_center, action)
