@@ -86,14 +86,14 @@ class MPC():
                         a = random_sample_normalized_constrained_action(self.action_dim)
                     elif self.sampler == 'geometric_informed':
                         geometric = GeometricSampler(None)
-                        a = geometric.most_different_regions(state, target_pcl, num_regions=64)
+                        a = geometric.geometric_sampler(state, target_pcl, n_samples=25)
                         a = normalize_action(a, self.action_dim)
                     else:
                         a = random_sample_normalized_action(self.action_dim)
 
                     # predict the next state given the proposed action
                     state = self.dynamics_model(state, a)
-                    # TODO: conver state to numpy array with 2D
+                    # TODO: convert state to numpy array with 2D
 
                     # unnormalize action
                     unnorm_a = unnormalize_a(a)

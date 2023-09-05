@@ -21,6 +21,7 @@ from utils.config import cfg_from_yaml_file
 from models.dvae import *
 from tools import builder
 from planners.mpc import MPC
+from planners.cem import CEM
 import planners.UdpComms as U
 
 
@@ -54,10 +55,9 @@ def main_loop(cam_pipelines, cam_streams, udp, target_pcl, exp_args, save_path, 
         device = torch.device('cuda')
         planner = MPC(device, dvae, feature_dynamics_network, exp_args['action_horizon'], exp_args['n_actions'], exp_args['a_dim'], sampler='random')
     elif exp_args['cem'] == True:
-        pass
-        # TODO: initialize CEM planner
-        # action_plan = CEM(encoder, decoder, forward_model, device, obs, target, action_horizon)
-        
+        device = torch.device('cuda')
+        planner = CEM(device, dvae, feature_dynamics_network, exp_args['action_horizon'], exp_args['n_actions'], exp_args['a_dim'], sampler='random')
+  
     cur_CDs = []
     best_planned_dists = []
 
@@ -100,7 +100,7 @@ def main_loop(cam_pipelines, cam_streams, udp, target_pcl, exp_args, save_path, 
         start = time.time()
         action_plan, final_state, best_planned_dist = planner.plan(np.asarray(cur_state_pcl.points), np.asarray(target_pcl.points))
         end = time.time()
-        print("\nTotal Planning Time: ", end-start)
+        print("\n\n\nTotal Planning Time: ", end-start)
         best_planned_dists.append(best_planned_dist)
 
         # save the predicted final state of selected trajectory along with the action plan (unnormalized actions) and CD
@@ -153,17 +153,17 @@ if __name__=='__main__':
 
     # create the exp_args dictionary
     exp_args = {
-        'action_horizon': 10, # 10
+        'action_horizon': 1, # 10
         'n_replan': 1,
-        'mpc': True,
-        'cem': False,
+        'mpc': False,
+        'cem': True,
         'n_actions': 100, # 100
         'a_dim': 5,
         'target_shape': 'X'
     }
 
     # define target_pcl
-    target_pcl = np.load( '/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos/States/shell_scaled_state10.npy')
+    target_pcl = np.load( '/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos/States/shell_scaled_state105.npy')
 
     # define experiment name and save path
     exp_name = 'Testing'

@@ -30,15 +30,15 @@ from dynamics import dynamics_utils as utils
 from dynamics import dynamics_model as dynamics
 from dynamics.dynamics_dataset import DemoActionDataset, GeometricDataset, FeatureDynamicsDataset
 
-def get_dataloaders(pcl_type, geometric=False, dvae=None):
+def get_dataloaders(pcl_type, geometric=True, dvae=None):
     """
     Insert comment
     """
-    # if geometric:
-    #     full_dataset = FeatureDynamicsDataset('/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos', pcl_type)
-    # else:
-    #     print("Demo action dataset...")
-    full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos', pcl_type)
+    if geometric:
+        full_dataset = FeatureDynamicsDataset('/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos', pcl_type)
+    else:
+        print("Demo action dataset...")
+    # full_dataset = Dic:emoActionDataset('/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos', pcl_type)
     train_size = int(0.8 * len(full_dataset))
     test_size = len(full_dataset) - train_size
     train_dataset, test_dataset = data.random_split(full_dataset, [train_size, test_size])
@@ -383,7 +383,7 @@ if __name__ == '__main__':
     # training styles: 'independent', 'sequential', 'gan'
     # main('independent', 'exp1')
     # main('sequential', 'exp2')
-    main('exp22_gtns', delta=False, geometric=False)
+    main('exp23_predns', delta=False, geometric=True)
 
     # TODO:
         # centroid w/ 1e-4, 1e-5 and 1e-6 learning rate
