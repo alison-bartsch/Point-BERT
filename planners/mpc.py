@@ -11,6 +11,7 @@ from planners.robot_utils import *
 from planners.plan_geometric_utils import * 
 from os.path import join
 from pytorch3d.loss import chamfer_distance
+from chamferdist import ChamferDistance
 from planners.geometric_sampler import GeometricSampler
 
 class MPC():
@@ -92,6 +93,7 @@ class MPC():
                         a = random_sample_normalized_action(self.action_dim)
 
                     # predict the next state given the proposed action
+                    # print("\n\na: ", a)
                     state = self.dynamics_model(state, a)
                     # TODO: convert state to numpy array with 2D
 
@@ -103,8 +105,10 @@ class MPC():
         
         cd_target = torch.from_numpy(np.expand_dims(target_pcl, axis=0)).float().cuda()
         cd_final_state = torch.from_numpy(np.array(final_states)).float().cuda()
-        dists = [chamfer_distance(fs.unsqueeze(0), cd_target)[0].cpu().detach().numpy() for fs in cd_final_state]
-        print("dists: ", dists)
+        chamferDist = ChamferDistance()
+        dists = [chamferDist(fs.unsqueeze(0), cd_target).detach().cpu().item() for fs in cd_final_state]
+        # dists = [chamfer_distance(fs.unsqueeze(0), cd_target)[0].cpu().detach().numpy() for fs in cd_final_state]
+        # print("dists: ", dists)
 
         # get the index of the smallest distance
         idx = np.argmin(dists)

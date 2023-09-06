@@ -287,8 +287,9 @@ def __rotation_from_vector(vector):
     roll = np.degrees(np.arctan2(-vector[1], -vector[2]))
     return np.array([np.degrees(roll), np.degrees(pitch), np.degrees(yaw)])
 
-def geometric_sampler(pc1, pc2, n_samples):
-    cluster_pairs, labels1, labels2 = most_different_regions(points_1, points_2, 45) # original: 64
+def geometric_sample(pc1, pc2, n_samples):
+    cluster_pairs, labels1, labels2 = most_different_regions(pc1, pc2, 45) # original: 64
+    actions = []
     for i in range(n_samples):
         region_pair = cluster_pairs[i]
         point1 = region_pair[0]
@@ -318,7 +319,9 @@ def geometric_sampler(pc1, pc2, n_samples):
         rz = rot[2]
         d = dist
 
-        return np.array([x, y, z, rx, ry, rz, d])
+        action =  np.array([x, y, z, rx, ry, rz, d])
+        actions.append(action)
+    return actions
     
 if __name__ == '__main__':
     args = None

@@ -11,6 +11,7 @@ from planners.robot_utils import *
 from planners.plan_geometric_utils import * 
 from os.path import join
 from pytorch3d.loss import chamfer_distance
+from chamferdist import ChamferDistance
 from planners.geometric_sampler import GeometricSampler
 
 class CEM():
@@ -121,7 +122,9 @@ class CEM():
                     
                 cd_target = torch.from_numpy(np.expand_dims(target_pcl, axis=0)).float().cuda()
                 cd_final_state = torch.from_numpy(np.array(recon)).float().cuda()
-                dists = [chamfer_distance(fs.unsqueeze(0), cd_target)[0].cpu().detach().numpy() for fs in cd_final_state]
+                chamferDist = ChamferDistance()
+                dists = [chamferDist(fs.unsqueeze(0), cd_target).detach().cpu().item() for fs in cd_final_state]
+                # dists = [chamfer_distance(fs.unsqueeze(0), cd_target)[0].cpu().detach().numpy() for fs in cd_final_state]
                 dists = torch.from_numpy(np.array(dists))
                 
                 print("\ndists: ", dists)
@@ -161,7 +164,9 @@ class CEM():
             final_state = obs_pcl
             action_traj.append(action[i,:])
             final_state = self.dynamics_model(final_state, action[i,:])
-        best_planned_dist = chamfer_distance(torch.from_numpy(np.expand_dims(target_pcl, axis=0)).float().cuda(), torch.from_numpy(np.expand_dims(final_state, axis=0)).float().cuda())[0].cpu().detach().numpy()
+        chamferDist = ChamferDistance()
+        best_planned_dist = chamferDist(torch.from_numpy(np.expand_dims(target_pcl, axis=0)).float().cuda(), torch.from_numpy(np.expand_dims(final_state, axis=0)).float().cuda()).detach().cpu().item()
+        # best_planned_dist = chamfer_distance(, )[0].cpu().detach().numpy()
 
         # visualize best final clay state overlayed with the target
         best_final_state = final_state

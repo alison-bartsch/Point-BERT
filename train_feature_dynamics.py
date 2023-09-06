@@ -29,16 +29,17 @@ from torch_cluster import knn_graph
 from dynamics import dynamics_utils as utils
 from dynamics import dynamics_model as dynamics
 from dynamics.dynamics_dataset import DemoActionDataset, GeometricDataset, FeatureDynamicsDataset
+from chamferdist import ChamferDistance
 
 def get_dataloaders(pcl_type, geometric=True, dvae=None):
     """
     Insert comment
     """
-    if geometric:
-        full_dataset = FeatureDynamicsDataset('/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos', pcl_type)
-    else:
-        print("Demo action dataset...")
-    # full_dataset = Dic:emoActionDataset('/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos', pcl_type)
+    # if geometric:
+    #     full_dataset = FeatureDynamicsDataset('/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos', pcl_type)
+    # else:
+    #     print("Demo action dataset...")
+    full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos', pcl_type)
     train_size = int(0.8 * len(full_dataset))
     test_size = len(full_dataset) - train_size
     train_dataset, test_dataset = data.random_split(full_dataset, [train_size, test_size])
@@ -102,7 +103,10 @@ def train_feature_dynamics(dvae, feature_dynamics_network, optimizer, scheduler,
         ret = dvae.decode_features(pred_features, states_neighborhood, ns_center, states_logits, states)
         _, neighborhood_ns, _, _ = dvae.encode(next_states)
         combo_ret = (ret[0], ret[1], ret[2], ret[3], neighborhood_ns, ret[5])
-        loss = dvae.recon_loss(combo_ret, next_states)
+        # loss = dvae.recon_loss(combo_ret, next_states)
+        chamferDist = ChamferDistance()
+        loss = chamferDist(combo_ret[1], next_states)
+        loss.requires_grad = True
 
         # # for chamfer distance loss
         # pred_feat_256 = dvae.sample_codebook(pred_features)
@@ -149,7 +153,10 @@ def test_feature_dynamics(dvae, feature_dynamics_network, optimizer, test_loader
             ret = dvae.decode_features(pred_features, states_neighborhood, ns_center, states_logits, states)
             _, neighborhood_ns, _, _ = dvae.encode(next_states)
             combo_ret = (ret[0], ret[1], ret[2], ret[3], neighborhood_ns, ret[5])
-            loss = dvae.recon_loss(combo_ret, next_states)
+            # loss = dvae.recon_loss(combo_ret, next_states)
+            chamferDist = ChamferDistance()
+            loss = chamferDist(combo_ret[1], next_states)
+            loss.requires_grad = True
 
             # # for chamfer distance loss
             # pred_feat_256 = dvae.sample_codebook(pred_features)
@@ -363,7 +370,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # Learning Parameters
-    parser.add_argument('--lr', type=float, default=2e-5, help='base learning rate for batch size 128 (default: 1e-3)')
+    parser.add_argument('--lr', type=float, default=1e-3, help='base learning rate for batch size 128 (default: 1e-3)')
     parser.add_argument('--weight_decay', type=float, default=0, help='default 0')
     parser.add_argument('--epochs', type=int, default=500, help='default: 100') # 500
     parser.add_argument('--log_interval', type=int, default=1, help='default: 1')
@@ -383,7 +390,7 @@ if __name__ == '__main__':
     # training styles: 'independent', 'sequential', 'gan'
     # main('independent', 'exp1')
     # main('sequential', 'exp2')
-    main('exp23_predns', delta=False, geometric=True)
+    main('exp24_newcd', delta=False, geometric=False)
 
     # TODO:
         # centroid w/ 1e-4, 1e-5 and 1e-6 learning rate

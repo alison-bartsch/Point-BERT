@@ -23,6 +23,7 @@ from tools import builder
 from planners.mpc import MPC
 from planners.cem import CEM
 import planners.UdpComms as U
+from chamferdist import ChamferDistance
 
 
 # start by naming the experiment and the experiment parameters
@@ -72,14 +73,16 @@ def main_loop(cam_pipelines, cam_streams, udp, target_pcl, exp_args, save_path, 
         # obs = fuse_point_clouds(pc2, pc3, pc4, pc5)
 
         # FOR TESTING
-        obs = np.load( '/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos/States/shell_scaled_state5.npy')
+        obs = np.load( '/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos/States/shell_scaled_state0.npy')
 
         np.save(save_path + '/obs' + str(i*exp_args['n_replan']) + '.npy', obs)
 
         # print distance between target and current state
         eval_target = torch.from_numpy(np.expand_dims(target_pcl, axis=0)).cuda()
         eval_obs = torch.from_numpy(np.expand_dims(obs, axis=0)).cuda()
-        dist = chamfer_distance(eval_target, eval_obs)[0].cpu().detach().numpy()
+        # dist = chamfer_distance(eval_target, eval_obs)[0].cpu().detach().numpy()
+        chamferDist = ChamferDistance()
+        dist = chamferDist(eval_target, eval_obs).detach().cpu().item()
         cur_CDs.append(dist)
         print("\nCurrent Chamfer Distance: ", dist)
 
@@ -153,17 +156,17 @@ if __name__=='__main__':
 
     # create the exp_args dictionary
     exp_args = {
-        'action_horizon': 1, # 10
+        'action_horizon': 3, # 10
         'n_replan': 1,
-        'mpc': False,
-        'cem': True,
-        'n_actions': 100, # 100
+        'mpc': True,
+        'cem': False,
+        'n_actions': 10000, # 100
         'a_dim': 5,
         'target_shape': 'X'
     }
 
     # define target_pcl
-    target_pcl = np.load( '/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos/States/shell_scaled_state105.npy')
+    target_pcl = np.load('/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos/Next_States/shell_scaled_state360.npy')
 
     # define experiment name and save path
     exp_name = 'Testing'
