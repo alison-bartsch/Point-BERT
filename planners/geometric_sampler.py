@@ -266,7 +266,7 @@ def most_different_regions(pc1, pc2, num_regions):
             cluster_pairs.append((pt1, pt2, dist))
     
     cluster_pairs.sort(key=lambda x: x[2], reverse=True)
-    print("Cluster Pairs: ", cluster_pairs)
+    # print("Cluster Pairs: ", cluster_pairs)
     # most_different.sort(key=lambda x: x[2], reverse=True)
 
     # print("Most different: ", most_different)
@@ -287,10 +287,15 @@ def __rotation_from_vector(vector):
     roll = np.degrees(np.arctan2(-vector[1], -vector[2]))
     return np.array([np.degrees(roll), np.degrees(pitch), np.degrees(yaw)])
 
-def geometric_sample(pc1, pc2, n_samples):
+def geometric_sample(pc1, pc2):
     cluster_pairs, labels1, labels2 = most_different_regions(pc1, pc2, 45) # original: 64
+
+    # get a list of the actions and a list of the distances
+    # sample the index with a probability based on the distances 
+
     actions = []
-    for i in range(n_samples):
+    dists = []
+    for i in range(len(cluster_pairs)):
         region_pair = cluster_pairs[i]
         point1 = region_pair[0]
         point2 = region_pair[1]
@@ -301,27 +306,37 @@ def geometric_sample(pc1, pc2, n_samples):
         # print("Dist: ", dist)
 
         region1_idx = np.where(point1 == labels1)[0]
-        region1 = points_1[region1_idx, :]
+        region1 = pc1[region1_idx, :]
         
         region2_idx = np.where(point2 == labels2)[0]
-        region2 = points_2[region2_idx, :]
+        region2 = pc2[region2_idx, :]
 
         # get the action
         ctr1 = np.mean(region1, axis=0)
         ctr2 = np.mean(region2, axis=0)
-        vector = ctr2 - ctr1
-        rot = __rotation_from_vector(vector)
-        x = ctr1[0]
-        y = ctr1[1]
-        z = ctr1[2]
+        vector = (ctr2 - ctr1) / 10
+        rot = __rotation_from_vector(vector) # TODO: this isn't working
+        x = ctr1[0] / 10
+        y = ctr1[1] / 10
+        z = ctr1[2] / 10
         rx = rot[0]
         ry = rot[1]
         rz = rot[2]
-        d = dist
+        d = dist / 10
+        # print("D: ", d)
 
-        action =  np.array([x, y, z, rx, ry, rz, d])
+        action =  np.array([x, y, z, rz, d])
+        pcl_center = np.array([0.6, 0.0, 0.25])
+        action[0:3] = action[0:3] + pcl_center
         actions.append(action)
-    return actions
+        dists.append(dist)
+
+    # TODO: do a weighted sampling of the potential actions instead of returning the top 25
+
+    # sample index wtih probability based on dists
+    sample_idx = np.random.choice(np.arange(len(actions)), 1, p=dists/np.sum(dists))[0]
+    action = actions[sample_idx]
+    return action
     
 if __name__ == '__main__':
     args = None
@@ -359,7 +374,7 @@ if __name__ == '__main__':
 
         # print("Point1: ", point1)
         # print("Point2: ", point2)
-        # print("Dist: ", dist)
+        print("\nDist: ", dist)
 
         region1_idx = np.where(point1 == labels1)[0]
         region1 = points_1[region1_idx, :]

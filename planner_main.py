@@ -25,6 +25,10 @@ from planners.cem import CEM
 import planners.UdpComms as U
 from chamferdist import ChamferDistance
 
+import sys
+sys.path.append("./MSN-Point-Cloud-Completion/emd/")
+import emd_module as emd
+
 
 # start by naming the experiment and the experiment parameters
 # create a folder with the experiment name and save a json file with the experiment parameters
@@ -54,7 +58,7 @@ def main_loop(cam_pipelines, cam_streams, udp, target_pcl, exp_args, save_path, 
     # initialize planner
     if exp_args['mpc'] == True:
         device = torch.device('cuda')
-        planner = MPC(device, dvae, feature_dynamics_network, exp_args['action_horizon'], exp_args['n_actions'], exp_args['a_dim'], sampler='random')
+        planner = MPC(device, dvae, feature_dynamics_network, exp_args['action_horizon'], exp_args['n_actions'], exp_args['a_dim'], sampler='geometric_informed')
     elif exp_args['cem'] == True:
         device = torch.device('cuda')
         planner = CEM(device, dvae, feature_dynamics_network, exp_args['action_horizon'], exp_args['n_actions'], exp_args['a_dim'], sampler='random')
@@ -75,16 +79,24 @@ def main_loop(cam_pipelines, cam_streams, udp, target_pcl, exp_args, save_path, 
         # FOR TESTING
         obs = np.load( '/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos/States/shell_scaled_state0.npy')
 
+        print("\nMin of obs: ", np.min(obs, axis=0))
+        print("Max of obs: ", np.max(obs, axis=0))
+        print("Min of target: ", np.min(target_pcl, axis=0))
+        print("Max of target: ", np.max(target_pcl, axis=0))
+
         np.save(save_path + '/obs' + str(i*exp_args['n_replan']) + '.npy', obs)
 
         # print distance between target and current state
         eval_target = torch.from_numpy(np.expand_dims(target_pcl, axis=0)).cuda()
         eval_obs = torch.from_numpy(np.expand_dims(obs, axis=0)).cuda()
-        # dist = chamfer_distance(eval_target, eval_obs)[0].cpu().detach().numpy()
-        chamferDist = ChamferDistance()
-        dist = chamferDist(eval_target, eval_obs).detach().cpu().item()
-        cur_CDs.append(dist)
+        dist = chamfer_distance(eval_target, eval_obs)[0].cpu().detach().numpy()
         print("\nCurrent Chamfer Distance: ", dist)
+
+        # EMD = emd.emdModule()
+        # dist, _ = EMD(eval_target, eval_obs, eps=0.005, iters=50)
+        # dist = torch.sqrt(dist).mean(1).cpu().detach().numpy()[0]
+        # cur_CDs.append(dist)
+        # print("\nCurrent EMD Distance: ", dist)
 
         # save the current state and target point cloud
         np.save(save_path + '/cur_state_pcl' + str(i*exp_args['n_replan']) + '.npy', obs)
@@ -105,6 +117,11 @@ def main_loop(cam_pipelines, cam_streams, udp, target_pcl, exp_args, save_path, 
         end = time.time()
         print("\n\n\nTotal Planning Time: ", end-start)
         best_planned_dists.append(best_planned_dist)
+
+        # check to make sure the best planned distance is less than the current distance
+        if best_planned_dist >= dist:
+            print("\nPlanned actions not improving CD, stopping planning!")
+            break
 
         # save the predicted final state of selected trajectory along with the action plan (unnormalized actions) and CD
         np.save(save_path + '/action_plan' + str(i*exp_args['n_replan']) + '.npy', action_plan)
@@ -137,17 +154,16 @@ def main_loop(cam_pipelines, cam_streams, udp, target_pcl, exp_args, save_path, 
 
 if __name__=='__main__':
     # import the dvae and dynamics models
-    dvae_path = 'experiments/dvae/ShapeNet55_models/test_dvae/ckpt-best.pth'
+    dvae_path = 'Point-BERT/experiments/dvae/ShapeNet55_models/test_dvae/ckpt-best.pth'
     device = torch.device('cuda')
 
     # for the models that were trained separately
-    center_dynamics_path = 'centroid_experiments/exp33_geometric' # 'dvae_dynamics_experiments/exp16_center_pointnet'
-    feature_dynamics_path = 'feature_experiments/exp15_new_dataset' # 'dvae_dynamics_experiments/exp39_dgcnn_pointnet'
+    feature_dynamics_path = 'Point-BERT/feature_experiments/exp15_new_dataset' # 'dvae_dynamics_experiments/exp39_dgcnn_pointnet'
     checkpoint = torch.load(feature_dynamics_path + '/checkpoint', map_location=torch.device('cpu'))
     feature_dynamics_network = checkpoint['feature_dynamics_network'].to(device) # 'dynamics_network'
 
     # load the dvae model
-    config = cfg_from_yaml_file('cfgs/Dynamics/dvae.yaml')
+    config = cfg_from_yaml_file('Point-BERT/cfgs/Dynamics/dvae.yaml')
     config=config.config
     dvae = builder.model_builder(config)
     builder.load_model(dvae, dvae_path, logger = 'dvae_testclay')
@@ -156,21 +172,23 @@ if __name__=='__main__':
 
     # create the exp_args dictionary
     exp_args = {
-        'action_horizon': 3, # 10
+        'action_horizon': 1, # 10
         'n_replan': 1,
         'mpc': True,
         'cem': False,
-        'n_actions': 10000, # 100
+        'n_actions': 25, # 100
         'a_dim': 5,
         'target_shape': 'X'
     }
 
     # define target_pcl
-    target_pcl = np.load('/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos/Next_States/shell_scaled_state360.npy')
+    # X: 360
+    # square: 1500
+    target_pcl = np.load('/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos/Next_States/shell_scaled_state3120.npy')
 
     # define experiment name and save path
     exp_name = 'Testing'
-    save_path = join(os.getcwd(), 'planners/Experiments/' + exp_name)
+    save_path = join(os.getcwd(), 'Point-BERT/planners/Experiments/' + exp_name)
     # os.mkdir(save_path)
 
     # initialize UDP communication with robot computer
