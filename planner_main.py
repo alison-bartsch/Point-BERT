@@ -25,9 +25,9 @@ from planners.cem import CEM
 import planners.UdpComms as U
 from chamferdist import ChamferDistance
 
-import sys
-sys.path.append("./MSN-Point-Cloud-Completion/emd/")
-import emd_module as emd
+# import sys
+# sys.path.append("./MSN-Point-Cloud-Completion/emd/")
+# import emd_module as emd
 
 
 # start by naming the experiment and the experiment parameters
@@ -58,7 +58,7 @@ def main_loop(cam_pipelines, cam_streams, udp, target_pcl, exp_args, save_path, 
     # initialize planner
     if exp_args['mpc'] == True:
         device = torch.device('cuda')
-        planner = MPC(device, dvae, feature_dynamics_network, exp_args['action_horizon'], exp_args['n_actions'], exp_args['a_dim'], sampler='geometric_informed')
+        planner = MPC(device, dvae, feature_dynamics_network, exp_args['action_horizon'], exp_args['n_actions'], exp_args['a_dim'], sampler=exp_args['sampler'])
     elif exp_args['cem'] == True:
         device = torch.device('cuda')
         planner = CEM(device, dvae, feature_dynamics_network, exp_args['action_horizon'], exp_args['n_actions'], exp_args['a_dim'], sampler='random')
@@ -176,19 +176,22 @@ if __name__=='__main__':
         'n_replan': 1,
         'mpc': True,
         'cem': False,
-        'n_actions': 25, # 100
+        'n_actions': 1500, # 100 geometric = 25
         'a_dim': 5,
-        'target_shape': 'X'
+        'exp_name': 'Testing',
+        'sampler': 'random', # 'geometric_informed'
+        'target_shape': 'X' # ['cone', 'cylinder', 'line', 'square', 'T', 'triangle', 'U', 'wavy', 'X']
     }
 
     # define target_pcl
     # X: 360
     # square: 1500
-    target_pcl = np.load('/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos/Next_States/shell_scaled_state3120.npy')
+    target_pcl = np.load('/home/alison/Documents/GitHub/Point-BERT/planners/Target_Shapes/' + exp_args['target_shape'] + '/state.npy')
+    # target_pcl = np.load('/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos/Next_States/shell_scaled_state3120.npy')
 
     # define experiment name and save path
-    exp_name = 'Testing'
-    save_path = join(os.getcwd(), 'Point-BERT/planners/Experiments/' + exp_name)
+    # exp_name = 'Testing'
+    save_path = join(os.getcwd(), 'Point-BERT/planners/Experiments/' + exp_args['exp_name'])
     # os.mkdir(save_path)
 
     # initialize UDP communication with robot computer
