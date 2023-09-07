@@ -31,8 +31,7 @@ def goto_grasp(fa, x, y, z, rx, ry, rz, d):
 if __name__=='__main__':
 
     # initialize the udp communication with the vision computer
-    # TODO: probably need to swap the IP addresses
-    udp = U.UdpComms(udpIP='172.26.69.200', sendIP='172.26.5.54', portTX=5500, portRX=5501, enableRX=True)
+    udp = U.UdpComms(udpIP='172.26.5.54', sendIP='172.26.69.200', portTX=5500, portRX=5501, enableRX=True)
 
     # initialize the robot and reset joints
     fa = FrankaArm()
