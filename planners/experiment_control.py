@@ -27,6 +27,8 @@ def goto_grasp(fa, x, y, z, rx, ry, rz, d):
         
     # TODO: update this with the scaled sleep based on distance between fingertips
 	time.sleep(3)
+     
+     
         
 if __name__=='__main__':
 
@@ -64,6 +66,12 @@ if __name__=='__main__':
             rz = action[3]
             d = action[4]
             goto_grasp(fa, x, y, z, rx, ry, rz, d)
+
+            s = 1 + (0.1 - 2 * d) * 65
+            time.sleep(s)
+            fa.stop_gripper()
+            time.sleep(0.5)
+            fa.open_gripper()
 
             fa.goto_pose(pose)
             time.sleep(0.5)
