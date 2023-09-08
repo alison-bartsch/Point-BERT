@@ -33,15 +33,17 @@ def goto_grasp(fa, x, y, z, rx, ry, rz, d):
 if __name__=='__main__':
 
     # initialize the udp communication with the vision computer
-    udp = U.UdpComms(udpIP='172.26.5.54', sendIP='172.26.69.200', portTX=5500, portRX=5501, enableRX=True)
+    # udp = U.UdpComms(udpIP='172.26.5.54', sendIP='172.26.69.200', portTX=5501, portRX=5500, enableRX=True)
+    udp = U.UdpComms(udpIP='172.26.229.213', sendIP='172.26.69.200', portTX=5501, portRX=5500, enableRX=True)
 
     # initialize the robot and reset joints
     fa = FrankaArm()
     fa.reset_joints()
     fa.reset_pose()
+    fa.open_gripper()
 
     # move to observation pose
-    observation_pose = np.array([0.5, 0.0, 0.035]) # TODO: replace with correct values
+    observation_pose = np.array([0.6, 0, 0.325])
     pose = fa.get_pose()
     pose.translation = observation_pose
     fa.goto_pose(pose)
@@ -53,7 +55,7 @@ if __name__=='__main__':
             action_msg = udp.ReadReceivedData()
             if action_msg is not None:
                 action_list = ast.literal_eval(action_msg)
-                print(action_list)
+                print("\nGot action!", action_list)
                 break
 
         # once receive a list of actions, iterate through the list and execute each action
