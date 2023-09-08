@@ -310,11 +310,11 @@ def fuse_point_clouds(pc2, pc3, pc4, pc5):
     Updated fusal based on Charlotte's improvements
     """    
     # import the transforms
-    transform_23 = np.load('planners/Camera_Extrinsics/transform_cam2_to_cam3_wonderful.npy')
-    transform_34 = np.load('planners/Camera_Extrinsics/transform_cam3_to_cam4_perfect.npy')
-    transform_54 = np.load('planners/Camera_Extrinsics/transform_cam5_to_cam4_perfect.npy')
-    transform_4w = np.load('planners/Camera_Extrinsics/cam4_world_transform.npy')
-    transform_w_improvement = np.load('planners/Camera_Extrinsics/world_transform.npy')
+    transform_23 = np.load('Point-BERT/planners/Camera_Extrinsics/transform_cam2_to_cam3_wonderful.npy')
+    transform_34 = np.load('Point-BERT/planners/Camera_Extrinsics/transform_cam3_to_cam4_perfect.npy')
+    transform_54 = np.load('Point-BERT/planners/Camera_Extrinsics/transform_cam5_to_cam4_perfect.npy')
+    transform_4w = np.load('Point-BERT/planners/Camera_Extrinsics/cam4_world_transform.npy')
+    transform_w_improvement = np.load('Point-BERT/planners/Camera_Extrinsics/world_transform.npy')
 
     # transform and combine all clouds
     pc2.transform(transform_23)
