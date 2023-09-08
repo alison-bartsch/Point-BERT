@@ -103,8 +103,8 @@ def main_loop(cam_pipelines, cam_streams, udp, target_pcl, exp_args, save_path, 
         np.save(save_path + '/cur_state_pcl' + str(i*exp_args['n_replan']) + '.npy', obs)
         np.save(save_path + '/target_pcl' + str(i*exp_args['n_replan']) + '.npy', target_pcl)
 
-        target_pcl, cur_state_pcl = plot_target_and_state_clouds(obs, target_pcl)
-        pcl_to_image(cur_state_pcl, target_pcl, save_path + '/cloud_states_' + str(i*exp_args['n_replan']) + '.png')
+        target_pcl_plot, cur_state_pcl = plot_target_and_state_clouds(obs, target_pcl)
+        pcl_to_image(cur_state_pcl, target_pcl_plot, save_path + '/cloud_states_' + str(i*exp_args['n_replan']) + '.png')
 
         # save camera image views
         save_rgb_image(cam_pipelines[2], cam_streams[2], save_path + '/img_cam2_state' + str(i*exp_args['n_replan']) + '.jpg')
