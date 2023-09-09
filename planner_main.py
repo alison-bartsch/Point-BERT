@@ -39,7 +39,7 @@ def video_loop(cam_pipeline, save_path, done_queue):
     forcc = cv2.VideoWriter_fourcc(*'XVID')
     if not os.path.exists(save_path):
         os.mkdir(save_path)
-    out = cv2.VideoWriter(save_path + '/video.avi', forcc, 20.0, (848, 480))
+    out = cv2.VideoWriter(save_path + '/video.avi', forcc, 30.0, (848, 480))
 
     # record until main loop is complete
     while done_queue.empty():
@@ -67,7 +67,7 @@ def main_loop(cam_pipelines, cam_streams, udp, target_pcl, exp_args, save_path, 
     cur_CDs = []
     best_planned_dists = []
 
-    for i in range(10):
+    for i in range(25):
         # get point clouds from each camera
         pc2 = get_camera_point_cloud(cam_pipelines[2], cam_streams[2])
         pc3 = get_camera_point_cloud(cam_pipelines[3], cam_streams[3])
@@ -114,13 +114,13 @@ def main_loop(cam_pipelines, cam_streams, udp, target_pcl, exp_args, save_path, 
 
         # generate plan
         start = time.time()
-        action_plan, final_state, best_planned_dist = planner.plan(np.asarray(cur_state_pcl.points), np.asarray(target_pcl.points))
+        action_plan, final_state, best_planned_dist = planner.plan(np.asarray(cur_state_pcl.points), np.asarray(target_pcl_plot.points))
         end = time.time()
         print("\n\n\nTotal Planning Time: ", end-start)
         best_planned_dists.append(best_planned_dist)
 
         # check to make sure the best planned distance is less than the current distance
-        if best_planned_dist >= dist:
+        if best_planned_dist >= dist + 0.0001:
             print("\nPlanned actions not improving CD, stopping planning!")
             break
 
@@ -148,7 +148,7 @@ def main_loop(cam_pipelines, cam_streams, udp, target_pcl, exp_args, save_path, 
         while True:
             replan_msg = udp.ReadReceivedData()
             if replan_msg is not None:
-                print(replan_msg)
+                print("action: ", replan_msg)
                 break
     
     done_queue.put("Done!")
@@ -177,24 +177,28 @@ if __name__=='__main__':
         'n_replan': 1,
         'mpc': True,
         'cem': False,
-        'n_actions': 1500, # 100 geometric = 25
+        'n_actions': 2500, # 1500 geometric = 25
         'a_dim': 5,
-        'exp_name': 'Exp1',
-        'sampler': 'random', # 'geometric_informed'
+        'exp_name': 'Exp8',
+        'sampler': 'random', # 'geometric_informed', 'random'
         'target_shape': 'X' # ['cone', 'cylinder', 'line', 'square', 'T', 'triangle', 'U', 'wavy', 'X']
     }
 
     # define target_pcl
     # X: 360
     # square: 1500
-    target_pcl = np.load('/home/alison/Documents/GitHub/Point-BERT/planners/Target_Shapes/' + exp_args['target_shape'] + '/state.npy')
-    # target_pcl = np.load('/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos/Next_States/shell_scaled_state3120.npy')
+    # target_pcl = np.load('/home/alison/Documents/GitHub/Point-BERT/planners/Target_Shapes/' + exp_args['target_shape'] + '/state.npy')
+    target_pcl = np.load('/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos/Next_States/shell_scaled_state360.npy')
 
     # define experiment name and save path
     # exp_name = 'Testing'
     save_path = join(os.getcwd(), 'Point-BERT/planners/Experiments/' + exp_args['exp_name'])
     if not os.path.exists(save_path):
         os.mkdir(save_path)
+
+    # save json file with experiment parameters
+    with open(save_path + '/exp_args.json', 'w') as fp:
+        json.dump(exp_args, fp)
 
     # initialize UDP communication with robot computer
     # TODO: CHANGE TEH IP ADDRESS!!!!!!!
@@ -269,7 +273,7 @@ if __name__=='__main__':
 
     extra_cam_pipeline = rs.pipeline()
     extra_config = rs.config()
-    extra_config.enable_device('152522250441') # TODO: replace with correct serial number
+    extra_config.enable_device('152522250441')
     extra_config.enable_stream(rs.stream.color, W, H, rs.format.bgr8, 30)
     extra_cam_pipeline.start(extra_config)
 
