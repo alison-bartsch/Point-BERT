@@ -22,7 +22,7 @@ def goto_grasp(fa, x, y, z, rx, ry, rz, d):
 	pose.rotation = r.as_matrix()
 	pose.translation = np.array([x, y, z])
 
-	fa.goto_pose(pose)
+	fa.goto_pose(pose, duration=5)
 	fa.goto_gripper(d, force=60.0)
         
     # TODO: update this with the scaled sleep based on distance between fingertips
@@ -62,7 +62,7 @@ if __name__=='__main__':
         for action in action_list:
             x = action[0]
             y = action[1]
-            z = action[2]
+            z = action[2] - 0.035 # add an offset
             rx = 0
             ry = 0
             rz = action[3]
