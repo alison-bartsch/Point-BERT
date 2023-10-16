@@ -7,25 +7,32 @@ from utils.config import *
 import time
 import os
 import torch
+
+
 from tensorboardX import SummaryWriter
 
 def main():
+    # print("\n\nIn the main here!")
     # args
     args = parser.get_args()
+    # print("got arguments")
     # CUDA
     args.use_gpu = torch.cuda.is_available()
     if args.use_gpu:
+        # print("using gpu!")
         torch.backends.cudnn.benchmark = True
     # init distributed env first, since logger depends on the dist info.
     if args.launcher == 'none':
         args.distributed = False
     else:
+        # print("distributed training!")
         args.distributed = True
         dist_utils.init_dist(args.launcher)
         # re-set gpu_ids with distributed training mode
         _, world_size = dist_utils.get_dist_info()
         args.world_size = world_size
     # logger
+    # print("creating logger...")
     timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
     log_file = os.path.join(args.experiment_path, f'{timestamp}.log')
     logger = get_root_logger(log_file=log_file, name=args.log_name)
@@ -39,6 +46,10 @@ def main():
             val_writer = None
     # config
     config = get_config(args, logger = logger)
+    print("\n\n\nconfig: ", config)
+    print("\n\nconfig.model: ", config.model)
+    
+    # print("got configs")
     # batch size
     if args.distributed:
         assert config.total_bs % world_size == 0
@@ -77,12 +88,16 @@ def main():
         config.dataset.val.others.fold = args.fold
         
     # run
+    # print("\n\n\nabout to run!")
     if args.test:
+        # print("testing...")
         test_net(args, config)
     else:
         if args.finetune_model or args.scratch_model:
+            # print("finetuning...")
             finetune(args, config, train_writer, val_writer)
         else:
+            # print("pretraining...")
             pretrain(args, config, train_writer, val_writer)
 
 

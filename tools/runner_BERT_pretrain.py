@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torchvision
 import os
 import json
 from tools import builder
@@ -50,11 +51,14 @@ def evaluate_svm(train_features, train_labels, test_features, test_labels):
 def run_net(args, config, train_writer=None, val_writer=None):
     logger = get_logger(args.log_name)
     # build dataset
+    print("building dataset...")
     (train_sampler, train_dataloader), (_, test_dataloader),= builder.dataset_builder(args, config.dataset.train), \
                                                             builder.dataset_builder(args, config.dataset.val)
+    print("train val done")
     (_, extra_train_dataloader)  = builder.dataset_builder(args, config.dataset.extra_train) if config.dataset.get('extra_train') else (None, None)
     # build model
     base_model = builder.model_builder(config.model)
+    print("model built...")
     if args.use_gpu:
         base_model.to(args.local_rank)
 
@@ -72,6 +76,8 @@ def run_net(args, config, train_writer=None, val_writer=None):
     elif args.start_ckpts is not None:
         builder.load_model(base_model, args.start_ckpts, logger = logger)
 
+    print("\n\n\nCheck cuda available", torch.cuda.is_available())
+
     # DDP
     if args.distributed:
         # Sync BN
@@ -82,6 +88,9 @@ def run_net(args, config, train_writer=None, val_writer=None):
         print_log('Using Distributed Data parallel ...' , logger = logger)
     else:
         print_log('Using Data parallel ...' , logger = logger)
+        print("\n\n\nCheck cuda available", torch.cuda.is_available())
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print("Device: ", device)
         base_model = nn.DataParallel(base_model).cuda()
     # optimizer & scheduler
     optimizer, scheduler = builder.build_opti_sche(base_model, config)

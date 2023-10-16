@@ -7,6 +7,7 @@ def get_args():
     parser.add_argument(
         '--config', 
         type = str, 
+        default='cfgs/Mixup_models/Point-BERT.yaml',
         help = 'yaml config file')
     parser.add_argument(
         '--launcher',

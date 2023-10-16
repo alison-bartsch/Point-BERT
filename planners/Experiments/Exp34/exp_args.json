@@ -1,0 +1,1 @@
+{"action_horizon": 1, "n_replan": 1, "mpc": true, "cem": false, "n_actions": 2500, "a_dim": 5, "exp_name": "Exp34", "sampler": "random", "target_shape": "T"}

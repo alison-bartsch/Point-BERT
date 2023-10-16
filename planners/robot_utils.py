@@ -340,18 +340,18 @@ def fuse_point_clouds(pc2, pc3, pc4, pc5):
     pointcloud.points.extend(pc4.points)
     pointcloud.colors.extend(pc4.colors)
 
-    o3d.visualization.draw_geometries([pointcloud])
+    # o3d.visualization.draw_geometries([pointcloud])
 
     # ------ cropping point cloud ------ 
     pointcloud, ind = pointcloud.remove_statistical_outlier(nb_neighbors=20, std_ratio=2.0) # remove statistical outliers                       
     pointcloud = remove_stage_grippers(pointcloud)
-    o3d.visualization.draw_geometries([pointcloud])
+    # o3d.visualization.draw_geometries([pointcloud])
     pointcloud = remove_background(pointcloud, radius = .15, center = np.array([0.6, -0.05, 0.3]))
-    o3d.visualization.draw_geometries([pointcloud])
+    # o3d.visualization.draw_geometries([pointcloud])
 
     # ----- color thresholding -----
     pointcloud = lab_color_crop(pointcloud)
-    o3d.visualization.draw_geometries([pointcloud])
+    # o3d.visualization.draw_geometries([pointcloud])
     pointcloud, ind = pointcloud.remove_statistical_outlier(nb_neighbors=20, std_ratio=2.0)
 
     # ----- calculate point cloud normals -----
@@ -405,7 +405,7 @@ def fuse_point_clouds(pc2, pc3, pc4, pc5):
     cropped_plane, ind = base_cloud.remove_statistical_outlier(nb_neighbors=20, std_ratio=2.0)
 
     base_cloud.colors = o3d.utility.Vector3dVector(np.tile(np.array([0,0,1]), (len(base_cloud.points),1)))
-    o3d.visualization.draw_geometries([base_cloud])
+    # o3d.visualization.draw_geometries([base_cloud])
 
     # uniformly sample 2048 points from each point cloud
     points = np.asarray(base_cloud.points)

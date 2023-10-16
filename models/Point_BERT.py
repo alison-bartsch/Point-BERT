@@ -95,8 +95,10 @@ class TransformerEncoder(nn.Module):
             for i in range(depth)])
 
     def forward(self, x, pos):
+        # print("\nTransformerEncoder x initial shape: ", x.shape)
         for _, block in enumerate(self.blocks):
             x = block(x + pos)
+            # print("\nTransformerEncoder x shape: ", x.shape)
         return x
 
 @MODELS.register_module()
@@ -208,9 +210,12 @@ class PointTransformer(nn.Module):
         neighborhood, center = self.group_divider(pts)
         # encoder the input cloud blocks
         group_input_tokens = self.encoder(neighborhood)  #  B G N
+        # print("\n\nGroup input tokens shape: ", group_input_tokens.shape)
         group_input_tokens = self.reduce_dim(group_input_tokens)
+        # print("\n\nGroup input tokens shape after reduce dim: ", group_input_tokens.shape)
         # prepare cls
         cls_tokens = self.cls_token.expand(group_input_tokens.size(0), -1, -1)  
+        # print("\nCls tokens: ", cls_tokens.shape)
         cls_pos = self.cls_pos.expand(group_input_tokens.size(0), -1, -1)  
         # add pos embedding
         pos = self.pos_embed(center)
@@ -220,9 +225,12 @@ class PointTransformer(nn.Module):
         # transformer
         x = self.blocks(x, pos)
         x = self.norm(x)
-        concat_f = torch.cat([x[:,0], x[:, 1:].max(1)[0]], dim = -1)
-        ret = self.cls_head_finetune(concat_f)
-        return ret
+        return x
+        # # print("\nOutput x: ", x)
+        # concat_f = torch.cat([x[:,0], x[:, 1:].max(1)[0]], dim = -1)
+        # ret = self.cls_head_finetune(concat_f)
+        # # print("\nShape cls head: ", ret.shape)
+        # return ret
 
 class MaskTransformer(nn.Module):
     def __init__(self, config, **kwargs):
@@ -299,6 +307,7 @@ class MaskTransformer(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
     def _prepare_encoder(self, dvae_ckpt):
+        # dvae_ckpt = 'experiments/dvae/ShapeNet55_models/test_dvae/ckpt-best.pth'
         ckpt = torch.load(dvae_ckpt, map_location='cpu')
         base_ckpt = {k.replace("module.", ""): v for k, v in ckpt['base_model'].items()}
         encoder_ckpt = {k.replace("encoder.", ""): v for k, v in base_ckpt.items() if 'encoder' in k}
@@ -383,16 +392,23 @@ class MaskTransformer(nn.Module):
             bool_masked_pos = self._mask_center_rand(center, noaug = noaug) # B G
         else:
             bool_masked_pos = self._mask_center(center, noaug = noaug) # B G
+        # print("\nBool Masked Shape: ", bool_masked_pos.shape)
         # encoder the input cloud blocks
         group_input_tokens = self.encoder(neighborhood)  #  B G N
+        # print("\nencoded group input tokens: ", group_input_tokens.shape)
         group_input_tokens = self.reduce_dim(group_input_tokens)
+        # print("\nreduced dim group input tokens: ", group_input_tokens.shape)
         # replace the point
         replaced_group_input_tokens, overall_mask = self._random_replace(group_input_tokens, bool_masked_pos.clone(), noaug = noaug)
+        # print("replaced group tokens: ", replaced_group_input_tokens.shape)
         batch_size, seq_len, _ = replaced_group_input_tokens.size()
         # prepare cls and mask
         cls_tokens = self.cls_token.expand(batch_size, -1, -1)  
+        # print("\ncls tokens: ", cls_tokens.shape)
         cls_pos = self.cls_pos.expand(batch_size, -1, -1)  
+        # print("\ncls pos: ", cls_pos.shape)
         mask_token = self.mask_token.expand(batch_size, seq_len, -1)
+        # print("\nmask token: ", mask_token.shape)
         # mask the input tokens
         w = bool_masked_pos.unsqueeze(-1).type_as(mask_token)
         maksed_group_input_tokens = replaced_group_input_tokens * (1 - w) + mask_token * w
@@ -400,10 +416,15 @@ class MaskTransformer(nn.Module):
         pos = self.pos_embed(center)
         # final input
         x = torch.cat((cls_tokens, maksed_group_input_tokens), dim=1)
+        # print("\nx input: ", x.shape)
         pos = torch.cat((cls_pos, pos), dim=1)
+        # print("\npos input: ", pos.shape)
         # transformer
         x = self.blocks(x, pos)
+        # print("\nx after blocks: ", x.shape)
         x = self.norm(x)
+        # print("\nx after norm: ", x.shape)
+        # print(("\n\n\nDONE!"))
         # only return the cls feature, for moco contrast
         if only_cls_tokens:
             return self.cls_head(x[:, 0])
@@ -481,7 +502,7 @@ class Point_BERT(nn.Module):
     @torch.no_grad()
     def _dequeue_and_enqueue(self, keys):
         # gather keys before updating queue
-        keys = concat_all_gather(keys)
+        # keys = concat_all_gather(keys)
 
         batch_size = keys.shape[0]
 

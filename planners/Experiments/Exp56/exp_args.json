@@ -1,0 +1,1 @@
+{"action_horizon": 1, "n_replan": 1, "mpc": true, "cem": false, "n_actions": 35, "a_dim": 5, "exp_name": "Exp56", "sampler": "geometric_informed", "target_shape": "T"}

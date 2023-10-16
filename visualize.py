@@ -1,4 +1,13 @@
 import torch
+import torchvision
+print("\n\n\n\ntorch version: ", torch.__version__)
+print("cuda available: ", torch.cuda.is_available())
+print("cuda version: ", torch.version.cuda)
+print("cudnn version: ", torch.backends.cudnn.version())
+print("torchvision version: ", torchvision.__version__)
+
+assert False
+
 import numpy as np
 import open3d as o3d
 from models.dvae import *

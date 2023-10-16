@@ -67,7 +67,7 @@ def main_loop(cam_pipelines, cam_streams, udp, target_pcl, exp_args, save_path, 
     cur_CDs = []
     best_planned_dists = []
 
-    for i in range(25):
+    for i in range(16):  # 25
         # get point clouds from each camera
         pc2 = get_camera_point_cloud(cam_pipelines[2], cam_streams[2])
         pc3 = get_camera_point_cloud(cam_pipelines[3], cam_streams[3])
@@ -115,12 +115,13 @@ def main_loop(cam_pipelines, cam_streams, udp, target_pcl, exp_args, save_path, 
         # generate plan
         start = time.time()
         action_plan, final_state, best_planned_dist = planner.plan(np.asarray(cur_state_pcl.points), np.asarray(target_pcl_plot.points))
+        # action_plan, final_state, best_planned_dist = planner.parallel_plan(np.asarray(cur_state_pcl.points), np.asarray(target_pcl_plot.points))
         end = time.time()
         print("\n\n\nTotal Planning Time: ", end-start)
         best_planned_dists.append(best_planned_dist)
 
         # check to make sure the best planned distance is less than the current distance
-        if best_planned_dist >= dist + 0.0001:
+        if best_planned_dist >= dist + 0.001: # + 0.0001:
             print("\nPlanned actions not improving CD, stopping planning!")
             break
 
@@ -159,7 +160,8 @@ if __name__=='__main__':
     device = torch.device('cuda')
 
     # for the models that were trained separately
-    feature_dynamics_path = 'Point-BERT/feature_experiments/exp15_new_dataset' # 'dvae_dynamics_experiments/exp39_dgcnn_pointnet'
+    feature_dynamics_path = 'Point-BERT/feature_experiments/exp26_random'
+    # feature_dynamics_path = 'Point-BERT/feature_experiments/exp15_new_dataset' # 'dvae_dynamics_experiments/exp39_dgcnn_pointnet'
     checkpoint = torch.load(feature_dynamics_path + '/checkpoint', map_location=torch.device('cpu'))
     feature_dynamics_network = checkpoint['feature_dynamics_network'].to(device) # 'dynamics_network'
 
@@ -177,18 +179,18 @@ if __name__=='__main__':
         'n_replan': 1,
         'mpc': True,
         'cem': False,
-        'n_actions': 2500, # 1500 geometric = 25
+        'n_actions': 35, # 2500 geometric = 35
         'a_dim': 5,
-        'exp_name': 'Exp8',
-        'sampler': 'random', # 'geometric_informed', 'random'
-        'target_shape': 'X' # ['cone', 'cylinder', 'line', 'square', 'T', 'triangle', 'U', 'wavy', 'X']
+        'exp_name': 'Exp66',
+        'sampler': 'geometric_informed', # 'geometric_informed', 'random'
+        'target_shape': 'triangle' # ['cone', 'cylinder', 'line', 'square', 'T', 'triangle', 'U', 'wavy', 'X']
     }
 
     # define target_pcl
     # X: 360
     # square: 1500
-    # target_pcl = np.load('/home/alison/Documents/GitHub/Point-BERT/planners/Target_Shapes/' + exp_args['target_shape'] + '/state.npy')
-    target_pcl = np.load('/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos/Next_States/shell_scaled_state360.npy')
+    target_pcl = np.load('/home/alison/Documents/GitHub/Point-BERT/planners/Target_Shapes/' + exp_args['target_shape'] + '/state.npy')
+    # target_pcl = np.load('/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos/Next_States/shell_scaled_state360.npy')
 
     # define experiment name and save path
     # exp_name = 'Testing'

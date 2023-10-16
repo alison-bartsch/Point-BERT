@@ -29,11 +29,11 @@ from torch_cluster import knn_graph
 from dynamics import dynamics_utils as utils
 from dynamics import dynamics_model as dynamics
 from dynamics.dynamics_dataset import DemoActionDataset, GeometricDataset, FeatureDynamicsDataset
-from chamferdist import ChamferDistance
+# from chamferdist import ChamferDistance
 
-import sys
-sys.path.append("./MSN-Point-Cloud-Completion/emd/")
-import emd_module as emd
+# import sys
+# sys.path.append("./MSN-Point-Cloud-Completion/emd/")
+# import emd_module as emd
 
 def get_dataloaders(pcl_type, geometric=True, dvae=None):
     """
@@ -43,7 +43,10 @@ def get_dataloaders(pcl_type, geometric=True, dvae=None):
     #     full_dataset = FeatureDynamicsDataset('/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos', pcl_type)
     # else:
     #     print("Demo action dataset...")
+
+
     full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos', pcl_type)
+    # full_dataset = DemoActionDataset('home/alison/Clay_Data/Fully_Processed/Sept11_Random', pcl_type)
     train_size = int(0.8 * len(full_dataset))
     test_size = len(full_dataset) - train_size
     train_dataset, test_dataset = data.random_split(full_dataset, [train_size, test_size])
@@ -107,14 +110,14 @@ def train_feature_dynamics(dvae, feature_dynamics_network, optimizer, scheduler,
         ret = dvae.decode_features(pred_features, states_neighborhood, ns_center, states_logits, states)
         _, neighborhood_ns, _, _ = dvae.encode(next_states)
         combo_ret = (ret[0], ret[1], ret[2], ret[3], neighborhood_ns, ret[5])
-        # loss = dvae.recon_loss(combo_ret, next_states)
+        loss = dvae.recon_loss(combo_ret, next_states)
 
-        # ----- getting EMD working -------
-        EMD = emd.emdModule()
-        dist, _ = EMD(combo_ret[1], next_states, eps=0.005, iters=50)
-        emds = torch.sqrt(dist).mean(1)
-        loss = torch.mean(emds)
-        loss.requires_grad = True
+        # # ----- getting EMD working -------
+        # EMD = emd.emdModule()
+        # dist, _ = EMD(combo_ret[1], next_states, eps=0.005, iters=50)
+        # emds = torch.sqrt(dist).mean(1)
+        # loss = torch.mean(emds)
+        # loss.requires_grad = True
 
         # # for chamfer distance loss
         # pred_feat_256 = dvae.sample_codebook(pred_features)
@@ -161,12 +164,12 @@ def test_feature_dynamics(dvae, feature_dynamics_network, optimizer, test_loader
             ret = dvae.decode_features(pred_features, states_neighborhood, ns_center, states_logits, states)
             _, neighborhood_ns, _, _ = dvae.encode(next_states)
             combo_ret = (ret[0], ret[1], ret[2], ret[3], neighborhood_ns, ret[5])
-            # loss = dvae.recon_loss(combo_ret, next_states)
+            loss = dvae.recon_loss(combo_ret, next_states)
             
-            EMD = emd.emdModule()
-            dist, _ = EMD(combo_ret[1], next_states, eps=0.005, iters=50)
-            emds = torch.sqrt(dist).mean(1)
-            loss = torch.mean(emds)
+            # EMD = emd.emdModule()
+            # dist, _ = EMD(combo_ret[1], next_states, eps=0.005, iters=50)
+            # emds = torch.sqrt(dist).mean(1)
+            # loss = torch.mean(emds)
 
             # # for chamfer distance loss
             # pred_feat_256 = dvae.sample_codebook(pred_features)
@@ -327,11 +330,11 @@ def main(exp_name, geometric=True, delta=False):
                     gamma=0.5)
 
     # load the pre-trained dvae
-    config = cfg_from_yaml_file('Point-BERT/cfgs/Dynamics/dvae.yaml')
+    config = cfg_from_yaml_file('cfgs/Dynamics/dvae.yaml')
     # config = cfg_from_yaml_file('cfgs/Dynamics/dvae.yaml')
     config=config.config
     # model_path = 'experiments/dvae/ShapeNet55_models/test_dvae/ckpt-best.pth' # set correct model path to load from
-    model_path = 'Point-BERT/experiments/dvae/ShapeNet55_models/test_dvae/ckpt-best.pth' # set correct model path to load from
+    model_path = 'experiments/dvae/ShapeNet55_models/test_dvae/ckpt-best.pth' # set correct model path to load from
     dvae = builder.model_builder(config)
     builder.load_model(dvae, model_path, logger = 'dvae_testclay')
     dvae.to(device)
@@ -382,7 +385,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # Learning Parameters
-    parser.add_argument('--lr', type=float, default=1e-6, help='base learning rate for batch size 128 (default: 1e-3)')
+    parser.add_argument('--lr', type=float, default=1e-5, help='base learning rate for batch size 128 (default: 1e-3)')
     parser.add_argument('--weight_decay', type=float, default=0, help='default 0')
     parser.add_argument('--epochs', type=int, default=500, help='default: 100') # 500
     parser.add_argument('--log_interval', type=int, default=1, help='default: 1')
@@ -402,7 +405,7 @@ if __name__ == '__main__':
     # training styles: 'independent', 'sequential', 'gan'
     # main('independent', 'exp1')
     # main('sequential', 'exp2')
-    main('exp25_emd', delta=False, geometric=False)
+    main('exp27_human_more_pts', delta=False, geometric=False)
 
     # TODO:
         # centroid w/ 1e-4, 1e-5 and 1e-6 learning rate

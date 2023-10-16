@@ -30,15 +30,19 @@ exp_name = None
 
 # load all necessary models
 # path = '/home/alison/Clay_Data/Fully_Processed/All_Shapes'
-path = '/home/alison/Clay_Data/Fully_Processed/May4_5D'
+
+# path = '/home/alison/Clay_Data/Fully_Processed/May4_5D'
+# path = '/home/alison/Clay_Data/Fully_Processed/Aug15_5D_Human_Demos'
+# path = '/home/alison/Clay_Data/Fully_Processed/Aug24_Human_Demos_Fully_Processed'
+path = '/home/alison/Clay_Data/Fully_Processed/Tiny_Dataset'
 dvae_path = 'experiments/dvae/ShapeNet55_models/test_dvae/ckpt-best.pth'
 device = torch.device('cuda')
 
 # for the models that were trained separately
-center_dynamics_path = 'centroid_experiments/exp1' # 'dvae_dynamics_experiments/exp16_center_pointnet'
-feature_dynamics_path = 'dvae_dynamics_experiments/exp39_dgcnn_pointnet'
+center_dynamics_path = 'centroid_experiments/exp31_tiny_dataset' # 'dvae_dynamics_experiments/exp16_center_pointnet'
+feature_dynamics_path = 'feature_experiments/exp9_human_demos' # 'dvae_dynamics_experiments/exp39_dgcnn_pointnet'
 checkpoint = torch.load(feature_dynamics_path + '/checkpoint', map_location=torch.device('cpu'))
-feature_dynamics_network = checkpoint['dynamics_network'].to(device)
+feature_dynamics_network = checkpoint['feature_dynamics_network'].to(device) # 'dynamics_network'
 ctr_checkpoint = torch.load(center_dynamics_path + '/checkpoint', map_location=torch.device('cpu'))
 center_dynamics_network = ctr_checkpoint['center_dynamics_network'].to(device)
 
@@ -67,7 +71,8 @@ cds_centroid = []
 
 # iterate through the dataset
 # for index in range(9419):
-test_samples = [0, 60, 120, 180, 240, 300, 360, 420, 480, 3000, 3060, 3120]
+# test_samples = [0, 60, 120, 180, 240, 300, 360, 420, 480, 3005, 3060, 3122, 6011, 7048]
+test_samples = [0,1,2,3,4,5,6,7,8,9]
 for index in test_samples:
     state, next_state, action = dataset.__getitem__(index)
     state = torch.unsqueeze(state, 0)
@@ -95,12 +100,15 @@ for index in test_samples:
     z_ns, ns_neighborhood, ns_gt_center, ns_logits = dvae.encode(next_state)
     ns_vae_decoded = dvae.decode(z_ns, ns_neighborhood, ns_gt_center, ns_logits, next_state)
 
-    print(center)
-    print(center.size)
-    print(center.size())
+    # print(center)
+    # print(center.size)
+    # print(center.size())
+
     # ns_center = center_dynamics_network(center, action).to(device)
     pred_ns_center = center_dynamics_network(center, action).to(device)
-    ns_center = center + pred_ns_center
+    # ns_center = center + pred_ns_center
+    ns_center = pred_ns_center
+    # ns_center = ns_gt_center 
     pred_features = feature_dynamics_network(z_states, ns_center, action)
     # pred_features = feature_dynamics_network(z_states, ns_gt_center, action)
 
@@ -130,6 +138,13 @@ for index in test_samples:
     og_pcl_cent.points = o3d.utility.Vector3dVector(ns_center_pcl)
     og_colors_cent = np.tile(np.array([0, 0, 1]), (len(ns_center_pcl),1))
     og_pcl_cent.colors = o3d.utility.Vector3dVector(og_colors_cent)
+
+    # create state centroid point cloud [GREEN]
+    s_center_pcl = center.squeeze().cpu().numpy()
+    s_pcl = o3d.geometry.PointCloud()
+    s_pcl.points = o3d.utility.Vector3dVector(s_center_pcl)
+    s_colors = np.tile(np.array([0, 1, 0]), (len(s_center_pcl),1))
+    s_pcl.colors = o3d.utility.Vector3dVector(s_colors)
     
     # visualize reconstructed centoird point cloud [RED]
     pred_ns_center = ns_center.squeeze().detach().cpu().numpy()
@@ -137,7 +152,7 @@ for index in test_samples:
     ns_pcl_cent.points = o3d.utility.Vector3dVector(pred_ns_center)
     ns_pcl_colors = np.tile(np.array([1, 0, 0]), (len(pred_ns_center),1))
     ns_pcl_cent.colors = o3d.utility.Vector3dVector(ns_pcl_colors)
-    o3d.visualization.draw_geometries([og_pcl_cent, ns_pcl_cent])
+    o3d.visualization.draw_geometries([s_pcl, og_pcl_cent, ns_pcl_cent])
 
     # get chamfer distance between recon_pcl and ns 
     chamfer_full_cloud = chamfer_distance(next_state, ret_recon_next[1])[0].cpu().detach().numpy()

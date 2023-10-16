@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
-from knn_cuda import KNN
+# from knn_cuda import KNN
 from pointnet2_ops import pointnet2_utils
 from .build import MODELS
 from utils import misc

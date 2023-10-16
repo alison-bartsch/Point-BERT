@@ -6,7 +6,7 @@ from tqdm import tqdm
 from tools import builder
 from geometric_utils import *
 from utils.config import cfg_from_yaml_file
-from dynamics.dynamics_dataset import DemoActionDataset, GeometricDataset
+from dynamics.dynamics_dataset import DemoActionDataset, GeometricDataset, EvaluationDataset, GeometricEvaluationDataset
 
 from torch_geometric.data import Data, Batch
 from torch_cluster import knn_graph
@@ -18,7 +18,7 @@ device = torch.device('cuda')
 
 # for the models that were trained separately
 center_dynamics_path = 'centroid_experiments/exp33_geometric' # 'dvae_dynamics_experiments/exp16_center_pointnet'
-feature_dynamics_path = 'feature_experiments/exp15_new_dataset' # 'dvae_dynamics_experiments/exp39_dgcnn_pointnet'
+feature_dynamics_path = 'feature_experiments/exp27_human_more_pts' # 'exp26_random' # 'exp15_new_dataset' 
 checkpoint = torch.load(feature_dynamics_path + '/checkpoint', map_location=torch.device('cpu'))
 feature_dynamics_network = checkpoint['feature_dynamics_network'].to(device) # 'dynamics_network'
 ctr_checkpoint = torch.load(center_dynamics_path + '/checkpoint', map_location=torch.device('cpu'))
@@ -33,16 +33,14 @@ dvae.to(device)
 dvae.eval()
 
 # initialize the dataset for feature dynamics
-dataset = DemoActionDataset(path, 'shell_scaled')
-geometric_dataset = GeometricDataset(path, 'shell_scaled')
+dataset = EvaluationDataset(path, 'shell_scaled')
+geometric_dataset = GeometricEvaluationDataset(path, 'shell_scaled')
 
 # track chamfer distance
 cds_full_cloud = []
 cds_centroid = []
 
-# loop for iterating through all the samples, and reporting:
-    # (1) mean + std dev of CD on whole pcl
-    # (2) mean + std dev of CD on centroid
+
 for index in tqdm(range(7620)):
     state, next_state, action = dataset.__getitem__(index)
     state = torch.unsqueeze(state, 0)
@@ -78,6 +76,49 @@ for index in tqdm(range(7620)):
 
     cds_full_cloud.append(chamfer_full_cloud)
     cds_centroid.append(chamfer_centroid)
+
+
+# # initialize the dataset for feature dynamics
+# path = '/home/alison/Clay_Data/Fully_Processed/Sept11_Random'
+# dataset = EvaluationDataset(path, 'shell_scaled', 'random')
+# geometric_dataset = GeometricEvaluationDataset(path, 'shell_scaled', 'random')
+
+# for index in tqdm(range(8260)): # 8400
+#     state, next_state, action = dataset.__getitem__(index)
+#     state = torch.unsqueeze(state, 0)
+#     next_state = torch.unsqueeze(next_state, 0)
+#     action = torch.unsqueeze(action, 0)
+
+#     state = state.cuda()
+#     next_state = next_state.cuda()
+#     action = action.cuda()
+
+#     z_states, neighborhood, center, logits = dvae.encode(state) #.to(device)
+#     z_ns, ns_neighborhood, ns_gt_center, ns_logits = dvae.encode(next_state)
+#     ns_vae_decoded = dvae.decode(z_ns, ns_neighborhood, ns_gt_center, ns_logits, next_state)
+
+#     unnormalized_state, unnormalized_ns, unnormalized_action, normalization_centroid, _ = geometric_dataset.__getitem__(index)
+#     ns_center_unnormalized = predict_centroid_dynamics(unnormalized_state, unnormalized_action)
+
+#     ns_center = ns_center_unnormalized - normalization_centroid
+#     m = np.max(np.sqrt(np.sum(ns_center**2, axis=1)))
+#     ns_center = ns_center / m
+#     ns_center = torch.from_numpy(ns_center).float().unsqueeze(0).cuda() 
+
+#     # feature dynamics prediction
+#     pred_features = feature_dynamics_network(z_states, ns_center, action)
+
+#     # decode the prediction
+#     ret_recon_next = dvae.decode_features(pred_features, neighborhood, ns_center, logits, state)
+#     recon_pcl = ret_recon_next[1]
+
+#     # get chamfer distance between recon_pcl and ns 
+#     chamfer_full_cloud = chamfer_distance(next_state, ret_recon_next[1])[0].cpu().detach().numpy()
+#     chamfer_centroid = chamfer_distance(ns_gt_center, ns_center)[0].cpu().detach().numpy()
+
+#     cds_full_cloud.append(chamfer_full_cloud)
+#     cds_centroid.append(chamfer_centroid)
+
 
 mean_cd = np.mean(cds_full_cloud)
 std_cd = np.std(cds_full_cloud)

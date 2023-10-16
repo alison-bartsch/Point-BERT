@@ -11,6 +11,8 @@ from datasets import data_transforms
 from pointnet2_ops import pointnet2_utils
 from torchvision import transforms
 
+import os
+
 
 train_transforms = transforms.Compose(
     [
@@ -52,6 +54,8 @@ def run_net(args, config, train_writer=None, val_writer=None):
                                                             builder.dataset_builder(args, config.dataset.val)
     # build model
     base_model = builder.model_builder(config.model)
+
+    # print("\n\nConfig model: ", config.model)
     
     # parameter setting
     start_epoch = 0
@@ -65,6 +69,8 @@ def run_net(args, config, train_writer=None, val_writer=None):
         best_metrics = Acc_Metric(best_metrics)
     else:
         if args.ckpts is not None:
+            print("\n\n\nCheckpoint: ", args.ckpts)
+            print("Does path exist? ", os.path.exists(args.ckpts))
             base_model.load_model_from_ckpt(args.ckpts)
         else:
             print_log('Training from scratch', logger = logger)
@@ -136,6 +142,9 @@ def run_net(args, config, train_writer=None, val_writer=None):
             points = train_transforms(points)
 
             ret = base_model(points)
+
+            # print("\n\n\nRET SHAPE: ", ret.shape)
+            # assert False
 
             # loss, acc = base_model.module.get_loss_acc(ret, label)
             loss, acc = base_model.module.get_loss_acc(ret, label, smoothing=args.label_smoothing)
