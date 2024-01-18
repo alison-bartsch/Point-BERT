@@ -12,7 +12,7 @@ from pytorch3d.loss import chamfer_distance
 
 
 # path = '/home/alison/Clay_Data/Fully_Processed/Aug24_Human_Demos_Fully_Processed'
-path = '/home/alison/Clay_Data/Fully_Processed/dvae_test'
+path = 'home/alison/Clay_Data/Fully_Processed/dvae_test'
 dvae_path = 'experiments/dvae/ShapeNet55_models/test_dvae/ckpt-best.pth'
 device = torch.device('cuda')
 

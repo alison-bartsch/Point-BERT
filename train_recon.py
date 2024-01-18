@@ -30,8 +30,7 @@ def get_dataloaders(pcl_type):
     """
     Insert comment
     """
-    full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/Jan17_Human_Demos', pcl_type)
-    # full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos', pcl_type)
+    full_dataset = DemoActionDataset('/home/alison/Clay_Data/Fully_Processed/Aug29_Correct_Scaling_Human_Demos', pcl_type)
     # full_dataset = DemoActionDataset('home/alison/Clay_Data/Fully_Processed/Sept11_Random', pcl_type)
     train_size = int(0.8 * len(full_dataset))
     test_size = len(full_dataset) - train_size
@@ -40,15 +39,14 @@ def get_dataloaders(pcl_type):
     test_loader = data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, pin_memory=True)
     return train_loader, test_loader
 
-def train_action(pointbert, encoder_head, action_network, optimizer, scheduler, train_loader, epoch):
-    # pointbert.eval()
-    pointbert.train()
-    encoder_head.train()
-    action_network.train()
+def train_recon(pointbert, dvae, recon_head, optimizer, scheduler, train_loader, epoch):
+    pointbert.eval()
+    dvae.eval()
+    recon_head.train()
 
     stats = utils.Stats()
     pbar = tqdm(total=len(train_loader.dataset))
-    parameters = list(encoder_head.parameters()) + list(action_network.parameters())
+    parameters = list(recon_head.parameters()) 
 
     for states, next_states, actions in train_loader:
 
@@ -57,15 +55,16 @@ def train_action(pointbert, encoder_head, action_network, optimizer, scheduler, 
         actions = actions.cuda()
 
         tokenized_states = pointbert(states)
-        tokenized_next_states = pointbert(next_states)
+        # print("tokenized_states: ", tokenized_states.shape)
 
-        latent_states = encoder_head(tokenized_states)
-        latent_next_states = encoder_head(tokenized_next_states)
+        latent_states = recon_head(tokenized_states)
+        recon_ret, recon_loss = dvae.latent_decode(states, latent_states) 
+        # recon_states = recon_ret[1] # TODO: need to make sure there is a flowing gradient here
+        # print("recon states: ", recon_states)
 
-        pred_actions = action_network(latent_states, latent_next_states)
-
-        loss_func = nn.MSELoss()
-        loss = loss_func(pred_actions, actions)
+        # loss_func = nn.CrossEntropyLoss()
+        # loss = loss_func(recon_states, states)
+        loss = recon_loss
 
         optimizer.zero_grad()
         loss.backward()
@@ -81,10 +80,10 @@ def train_action(pointbert, encoder_head, action_network, optimizer, scheduler, 
     scheduler.step()
     return stats
 
-def test_action(pointbert, encoder_head, action_network, optimizer, test_loader, epoch):
+def test_recon(pointbert, dvae, recon_head, optimizer, test_loader, epoch):
     pointbert.eval()
-    encoder_head.eval()
-    action_network.eval()
+    dvae.eval()
+    recon_head.eval()
 
     test_loss = 0
     for states, next_states, actions in test_loader:
@@ -94,15 +93,14 @@ def test_action(pointbert, encoder_head, action_network, optimizer, test_loader,
             actions = actions.cuda()
 
             tokenized_states = pointbert(states)
-            tokenized_next_states = pointbert(next_states)
+            latent_states = recon_head(tokenized_states)
+            recon_ret, recon_loss = dvae.latent_decode(states, latent_states) 
+            # recon_states = recon_ret[1] # TODO: need to make sure there is a flowing gradient here
+            # print("recon states: ", recon_states)
 
-            latent_states = encoder_head(tokenized_states)
-            latent_next_states = encoder_head(tokenized_next_states)
-
-            pred_actions = action_network(latent_states, latent_next_states)
-
-            loss_func = nn.MSELoss()
-            loss = loss_func(pred_actions, actions)
+            # loss_func = nn.CrossEntropyLoss()
+            # loss = loss_func(recon_states, states)
+            loss = recon_loss
 
         test_loss += loss * states.shape[0]
     test_loss /= len(test_loader.dataset)
@@ -114,20 +112,15 @@ def main(exp_name, geometric=True, delta=False):
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
 
-    folder_name = join('embedding_experiments', exp_name)
+    folder_name = join('recon_experiments', exp_name)
     if not exists(folder_name):
         os.makedirs(folder_name)
 
     writer = SummaryWriter(join(folder_name, 'data'))
 
-    # learning rate scheduler parameters
-    milestones=[25,50,75,100,125,150,200,250,300,350,450]
-    gamma=0.25
 
     save_args = vars(args)
-    save_args['milestones'] = milestones
-    save_args['gamma'] = gamma
-    save_args['script'] = 'train_action'
+    save_args['script'] = 'train_recon'
     with open(join(folder_name, 'params.json'), 'w') as f:
         json.dump(save_args, f) 
 
@@ -136,27 +129,31 @@ def main(exp_name, geometric=True, delta=False):
     # load the encoder head and action network
     encoded_dim = 768 # 768 # 65*384
     latent_dim = 512
-    encoder_head = dynamics.EncoderHead(encoded_dim, latent_dim).to(device)
-    action_network = dynamics.ActionNetwork(latent_dim, args.a_dim).to(device)
+    recon_head = dynamics.ReconHead(encoded_dim, latent_dim).to(device)
 
-    parameters = list(encoder_head.parameters()) + list(action_network.parameters())
+    parameters = list(recon_head.parameters()) 
    
     optimizer = optim.Adam(parameters, lr=args.lr, weight_decay=args.weight_decay)
     scheduler = MultiStepLR(optimizer,
                     # milestones=[15, 45, 75, 100, 200],
-                    # milestones=[10,25,50,75,100,125,150,200,250,300,350,450],
-                    # gamma=0.5)
-                    # milestones=[25,50,75,100,125,150,200,250,300,350,450],
-                    # gamma=0.25)
-                    milestones=milestones,
-                    gamma=gamma)
+                    milestones=[100,150,200,250,350,450],
+                    gamma=0.5)
 
+    # import pretrained pointbert
     config = cfg_from_yaml_file('cfgs/ModelNet_models/PointTransformer.yaml')
     model_config = config.model
     pointbert = builder.model_builder(model_config)
     weights_path = 'experiments/Point-BERT/Mixup_models/downloaded/Point-BERT.pth'
     pointbert.load_model_from_ckpt(weights_path)
     pointbert.to(device)
+
+    # import pretrained dvae decoder
+    config = cfg_from_yaml_file('cfgs/Dynamics/dvae.yaml')
+    config=config.config
+    model_path = 'experiments/dvae/ShapeNet55_models/test_dvae/ckpt-best.pth' # set correct model path to load from
+    dvae = builder.model_builder(config)
+    builder.load_model(dvae, model_path, logger = 'dvae_testclay')
+    dvae.to(device)
 
     train_loader, test_loader = get_dataloaders(args.pcl_type)
 
@@ -165,8 +162,8 @@ def main(exp_name, geometric=True, delta=False):
     itr = 0
     for epoch in range(args.epochs):
 
-        stats = train_action(pointbert, encoder_head, action_network, optimizer, scheduler, train_loader, epoch)
-        test_loss = test_action(pointbert, encoder_head, action_network, optimizer, test_loader, epoch)
+        stats = train_recon(pointbert, dvae, recon_head, optimizer, scheduler, train_loader, epoch)
+        test_loss = test_recon(pointbert, dvae, recon_head, optimizer, test_loader, epoch)
 
         # Log metrics
         old_itr = itr
@@ -184,20 +181,9 @@ def main(exp_name, geometric=True, delta=False):
                 with open(folder_name + '/best_feat_test_loss.txt', 'w') as f:
                     string = str(epoch) + ':   ' + str(test_loss)
                     f.write(string)
-
-                # save current pointbert model!
-                # builder.save_checkpoint(base_model, optimizer, epoch, metrics, best_metrics, 'ckpt-best', args, logger = logger)
-                torch.save({
-                    'base_model' : pointbert.state_dict(),
-                    'optimizer' : optimizer.state_dict(),
-                    'epoch' : epoch,
-                    'metrics' : dict(),
-                    'best_metrics' : dict(),
-                    }, os.path.join(folder_name, 'best_pointbert.pth'))
                 
                 checkpoint = {
-                    'encoder_head': encoder_head, 
-                    'action_network': action_network,
+                    'encoder_head': recon_head, 
                     'optimizer': optimizer,
                 }
 
@@ -209,9 +195,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # Learning Parameters
-    parser.add_argument('--lr', type=float, default=1e-3, help='base learning rate for batch size 128 (default: 1e-3)')
+    parser.add_argument('--lr', type=float, default=1e-4, help='base learning rate for batch size 128 (default: 1e-3)')
     parser.add_argument('--weight_decay', type=float, default=0, help='default 0')
-    parser.add_argument('--epochs', type=int, default=300, help='default: 100') # 500
+    parser.add_argument('--epochs', type=int, default=500, help='default: 100') # 500
     parser.add_argument('--log_interval', type=int, default=1, help='default: 1')
     parser.add_argument('--batch_size', type=int, default=32, help='default 32') # 32
 
@@ -225,7 +211,7 @@ if __name__ == '__main__':
     parser.add_argument('--name', type=str, default='exp1', help='folder name results are stored into')
     args = parser.parse_args()
 
-    main('exp20_new_dataset_pointbert_unfrozen')
+    main('exp15')
 
 
 # # setup the Point-BERT model loading the checkpoint
@@ -244,3 +230,6 @@ if __name__ == '__main__':
 
 # # pass the batch of point clouds through Point-BERT to the get the embeddings
 # # pass the embeddings through the action network head to get the predicted action
+
+
+# Need a dataloader that only takes in a point cloud and returns the reconstructed pointcloud

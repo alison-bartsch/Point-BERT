@@ -205,27 +205,37 @@ class PointTransformer(nn.Module):
         print_log(f'[Transformer] Successful Loading the ckpt from {bert_ckpt_path}', logger = 'Transformer')
 
 
-    def forward(self, pts):
+    def forward(self, pts, pos_embed=False):
+        # print("\n\npts shape: ", pts.shape)
         # divide the point clo  ud in the same form. This is important
         neighborhood, center = self.group_divider(pts)
+        # print("neighborhood shape: ", neighborhood.shape)
+        # print("center shape :", center.shape)
         # encoder the input cloud blocks
         group_input_tokens = self.encoder(neighborhood)  #  B G N
+        # print("group input tokens: ", group_input_tokens.shape)
         # print("\n\nGroup input tokens shape: ", group_input_tokens.shape)
         group_input_tokens = self.reduce_dim(group_input_tokens)
-        # print("\n\nGroup input tokens shape after reduce dim: ", group_input_tokens.shape)
+        # print("Group input tokens shape after reduce dim: ", group_input_tokens.shape)
         # prepare cls
         cls_tokens = self.cls_token.expand(group_input_tokens.size(0), -1, -1)  
-        # print("\nCls tokens: ", cls_tokens.shape)
+        # print("Cls tokens: ", cls_tokens.shape)
         cls_pos = self.cls_pos.expand(group_input_tokens.size(0), -1, -1)  
         # add pos embedding
         pos = self.pos_embed(center)
         # final input
         x = torch.cat((cls_tokens, group_input_tokens), dim=1)
+        # print("x shape: ", x.shape)
         pos = torch.cat((cls_pos, pos), dim=1)
+        # print("Pos Shape: ", pos.shape)
         # transformer
         x = self.blocks(x, pos)
         x = self.norm(x)
-        return x
+        # print("final x: ", x.shape)
+        if pos_embed:
+            return x, pos
+        else:
+            return x
         # # print("\nOutput x: ", x)
         # concat_f = torch.cat([x[:,0], x[:, 1:].max(1)[0]], dim = -1)
         # ret = self.cls_head_finetune(concat_f)

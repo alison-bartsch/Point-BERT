@@ -373,6 +373,23 @@ class DiscreteVAE(nn.Module):
         sampled = torch.einsum('b g n, n c -> b g c', soft_one_hot, self.codebook)
         # sampled shape B G C
         return sampled
+    
+    def latent_decode(self, inp, latent_recon):
+        neighborhood, center = self.group_divider(inp)
+        coarse, fine = self.decoder(latent_recon)
+        # print("fine: ", fine.shape)
+        # print("center: ", center.shape)
+        # print("reshaped center shape: ", center.unsqueeze(2).shape)
+        # print("fine reshaped: ", fine.reshape(inp.size(0), -1, 3).shape)
+        # print("center reshaped: ", center.unsqueeze(2).reshape(inp.size(0), -1, 3).shape)
+        with torch.no_grad():
+            whole_fine = (fine + center.unsqueeze(2)).reshape(inp.size(0), -1, 3)
+            whole_coarse = (coarse + center.unsqueeze(2)).reshape(inp.size(0), -1, 3)
+
+        assert fine.size(2) == self.group_size
+        ret = (whole_coarse, whole_fine, coarse, fine, neighborhood, None)
+        recon_loss = self.recon_loss(ret, inp)
+        return ret, recon_loss
 
 
     def forward(self, inp, temperature = 1., hard = False, **kwargs):
@@ -382,6 +399,7 @@ class DiscreteVAE(nn.Module):
         soft_one_hot = F.gumbel_softmax(logits, tau = temperature, dim = 2, hard = hard) # B G N
         sampled = torch.einsum('b g n, n c -> b g c', soft_one_hot, self.codebook) # B G C
         feature = self.dgcnn_2(sampled, center)
+        print("feature shape :", feature.shape)
         coarse, fine = self.decoder(feature)
 
         with torch.no_grad():

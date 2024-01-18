@@ -10,6 +10,7 @@ class ActionNetwork(nn.Module):
         self.latent_dim = latent_dim
         self.action_dim = action_dim
 
+        # two state inputs
         self.action_predictor = nn.Sequential(
             nn.Linear(self.latent_dim*2, self.latent_dim),
             nn.ReLU(),
@@ -20,8 +21,20 @@ class ActionNetwork(nn.Module):
             nn.Linear(256, self.action_dim)
         )
 
+        # # delta inputs
+        # self.action_predictor = nn.Sequential(
+        #     nn.Linear(self.latent_dim, self.latent_dim),
+        #     nn.ReLU(),
+        #     nn.Linear(self.latent_dim, self.latent_dim),
+        #     nn.ReLU(),
+        #     nn.Linear(self.latent_dim, 256),
+        #     nn.ReLU(),
+        #     nn.Linear(256, self.action_dim)
+        # )
+
     def forward(self, ls, lns):
         x = torch.cat((ls, lns), dim=-1)
+        # x = lns - ls
         pred_actions = self.action_predictor(x)
         return pred_actions
 
@@ -31,15 +44,75 @@ class EncoderHead(nn.Module):
         self.encoded_dim = encoded_dim
         self.latent_dim = latent_dim
 
+        # self.encoder_head = nn.Sequential(
+        #     nn.Linear(self.encoded_dim, self.latent_dim),
+        #     nn.GELU(),
+        #     nn.Linear(self.latent_dim, self.latent_dim))
+        
+        # what has been working best for the cls indexing of the point cloud embedding
         self.encoder_head = nn.Sequential(
-            nn.Linear(self.encoded_dim, self.latent_dim),
+            nn.Linear(self.encoded_dim, 1024),
             nn.GELU(),
-            nn.Linear(self.latent_dim, self.latent_dim))
+            nn.Linear(1024, self.latent_dim),
+            nn.GELU(),
+            nn.Linear(self.latent_dim, self.latent_dim)
+        )
+
+        # proposed network structure for the complete point cloud embedding flattened
+        # self.encoder_head = nn.Sequential(
+        #     nn.Linear(self.encoded_dim, 1024),
+        #     nn.GELU(),
+        #     nn.Linear(1024, 1024),
+        #     nn.GELU(),
+        #     nn.Linear(1024, self.latent_dim),
+        #     nn.GELU(),
+        #     nn.Linear(self.latent_dim, self.latent_dim)
+        # )
 
     def forward(self, encoded_pcl):
+        # concatentation strategy from pointtransformer for downstream classification tasks
         x = torch.cat([encoded_pcl[:,0], encoded_pcl[:, 1:].max(1)[0]], dim = -1) # concatenation strategy from pointtransformer
+        # fully flattening the encoded point cloud to avoid losing any information
         # x = torch.flatten(encoded_pcl, start_dim=1)
         latent_state = self.encoder_head(x)
+        return latent_state
+    
+class ReconHead(nn.Module):
+    def __init__(self, encoded_dim, latent_dim):
+        super(ReconHead, self).__init__()
+        self.encoded_dim = encoded_dim
+        self.latent_dim = latent_dim
+
+        self.reduce_dim = nn.Linear(384, 256)
+        
+        self.latent_encoder = nn.Sequential(
+            nn.Linear(16640, 1024),
+            nn.GELU(),
+            nn.Linear(1024, 512),
+            nn.GELU(),
+            nn.Linear(512, 512),
+            nn.GELU(),
+            nn.Linear(512, 512)
+        )
+
+        self.latent_decoder = nn.Sequential(
+            nn.Linear(512, 512),
+            nn.GELU(),
+            nn.Linear(512, 512),
+            nn.GELU(),
+            nn.Linear(512, 1024),
+            nn.GELU(),
+            nn.Linear(1024, 16384),
+        )
+
+    def forward(self, encoded_pcl):
+        x = self.reduce_dim(encoded_pcl) # 65 x 384 --> 65 x 256
+        x = torch.flatten(x, start_dim=1) # flatten 65 x 256
+        latent_state = self.latent_encoder(x) 
+        # print("latnet state: ", latent_state.shape)
+        latent_state = self.latent_decoder(latent_state) # reconstruct to flattened 64 x 256
+        # reshape the latent state to 64 x 256
+        latent_state = torch.reshape(latent_state, (latent_state.size()[0], 64, 256))
         return latent_state
 
 
