@@ -121,8 +121,8 @@ def main(exp_name, geometric=True, delta=False):
     writer = SummaryWriter(join(folder_name, 'data'))
 
     # learning rate scheduler parameters
-    milestones=[25,50,75,100,125,150,200,250,300,350,450]
-    gamma=0.25
+    milestones = [10,25,50,75,85,95,105,125,150,175,200,225,250,300,350,450] # [10,25,50,75,100,150,200,250,300,350,450]
+    gamma = 0.5 # 0.25
 
     save_args = vars(args)
     save_args['milestones'] = milestones
@@ -211,7 +211,7 @@ if __name__ == '__main__':
     # Learning Parameters
     parser.add_argument('--lr', type=float, default=1e-3, help='base learning rate for batch size 128 (default: 1e-3)')
     parser.add_argument('--weight_decay', type=float, default=0, help='default 0')
-    parser.add_argument('--epochs', type=int, default=300, help='default: 100') # 500
+    parser.add_argument('--epochs', type=int, default=250, help='default: 100') # 500
     parser.add_argument('--log_interval', type=int, default=1, help='default: 1')
     parser.add_argument('--batch_size', type=int, default=32, help='default 32') # 32
 
@@ -225,7 +225,7 @@ if __name__ == '__main__':
     parser.add_argument('--name', type=str, default='exp1', help='folder name results are stored into')
     args = parser.parse_args()
 
-    main('exp20_new_dataset_pointbert_unfrozen')
+    main('exp24_new_dataset_pointbert_unfrozen')
 
 
 # # setup the Point-BERT model loading the checkpoint

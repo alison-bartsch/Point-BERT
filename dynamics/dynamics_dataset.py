@@ -229,7 +229,84 @@ class EvaluationDataset(data.Dataset):
         # print("Diff: ", next_state - state)
         
         return state, next_state, action
+    
+class DemoContrastiveDataset(data.Dataset):
+    """
+    """
 
+    def __init__(self, root, pcl_type):
+        self.root = root
+        # self.actions = np.load('/' + self.root + '/action_normalized.npy').astype('float32')
+        self.actions = np.load(self.root + '/action_normalized.npy').astype('float32')
+        # # for tiny dataset test
+        # self.actions = self.actions[:16]
+        self.pcl_type = pcl_type
+        self.sample_points_num = 2048 # 1048
+        self.npoints = 2048
+        self.permutation = np.arange(self.npoints)
+
+    def pc_norm(self, pc):
+        """ pc: NxC, return NxC """
+        centroid = np.mean(pc, axis=0)
+        pc = pc - centroid
+        m = np.max(np.sqrt(np.sum(pc**2, axis=1)))
+        pc = pc / m
+        return pc
+
+    def random_sample(self, pc, num):
+        np.random.shuffle(self.permutation)
+        pc = pc[self.permutation[:num]]
+        return pc
+
+    def __len__(self):
+        return len(self.actions)
+
+    def __getitem__(self, index):
+        # state = np.expand_dims(np.load('/' + self.root + '/States/' + self.pcl_type + '_state' + str(index) + '.npy'), axis=0)
+        # state = np.expand_dims(np.load(self.root + '/States/' + self.pcl_type + '_state' + str(index) + '.npy'), axis=0)
+        state = np.expand_dims(np.load(self.root + '/States/state' + str(index) + '.npy'), axis=0)
+        
+        # # for the human demos
+        # if index % 60 == 0:
+        #     # next_state = np.expand_dims(np.load('/' + self.root + '/Next_States/' + self.pcl_type + '_next_state' + str(index) + '.npy'), axis=0)
+        #     next_state = np.expand_dims(np.load(self.root + '/Next_States/' + self.pcl_type + '_next_state' + str(index) + '.npy'), axis=0)
+        # else:
+        #     # next_state = np.expand_dims(np.load('/' + self.root + '/Next_States/' + self.pcl_type + '_state' + str(index) + '.npy'), axis=0)
+        #     next_state = np.expand_dims(np.load(self.root + '/Next_States/' + self.pcl_type + '_state' + str(index) + '.npy'), axis=0)
+
+        # # for the random actions
+        # next_state = np.expand_dims(np.load(self.root + '/Next_States/' + self.pcl_type + '_next_state' + str(index) + '.npy'), axis=0)
+
+        # # # for the random actions
+        # next_state = np.expand_dims(np.load('/' + self.root + '/Next_States/' + self.pcl_type + '_state' + str(index) + '.npy'), axis=0)
+        next_state = np.expand_dims(np.load('/' + self.root + '/Next_States/next_state' + str(index) + '.npy'), axis=0)
+
+        # get a random state by sampling a random index within the bounds (0, len(actions))
+        rand_idx = np.random.randint(0, len(self.actions))
+        rand_state = np.expand_dims(np.load(self.root + '/States/state' + str(rand_idx) + '.npy'), axis=0)
+
+        state = state.squeeze()
+        state = self.random_sample(state, self.sample_points_num)
+        state = self.pc_norm(state)
+
+        next_state = next_state.squeeze()
+        next_state = self.random_sample(next_state, self.sample_points_num)
+        next_state = self.pc_norm(next_state)
+
+        rand_state = rand_state.squeeze()
+        rand_state = self.random_sample(rand_state, self.sample_points_num)
+        rand_state = self.pc_norm(rand_state)
+
+        state = torch.from_numpy(state).float()
+        next_state = torch.from_numpy(next_state).float()
+        rand_state = torch.from_numpy(rand_state).float()
+        # action = torch.from_numpy(action).float()
+
+        # print("state: ", state)
+        # print("next state: ", next_state)
+        # print("Diff: ", next_state - state)
+        
+        return state, next_state, rand_state
 class DemoActionDataset(data.Dataset):
     """
     """
